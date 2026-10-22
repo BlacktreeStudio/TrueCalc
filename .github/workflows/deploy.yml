@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  schedule:
+    # Daily refresh of mortgage and inflation rates (public/rates.json)
+    - cron: "17 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -29,12 +32,20 @@ jobs:
           cache: npm
 
       - name: Setup Pages
+        id: pages
         uses: actions/configure-pages@v4
         with:
           static_site_generator: next
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Fetch current rates
+        # A failed fetch must never block a deploy; the app reports missing data
+        continue-on-error: true
+        run: npm run fetch-rates
+        env:
+          PREVIOUS_RATES_URL: ${{ steps.pages.outputs.base_url }}/rates.json
 
       - name: Build with Next.js
         run: npm run build
