@@ -79,7 +79,10 @@ async function ecb(flow, key, label) {
     };
 }
 
-const ecbHicp = (area) => ecb('ICP', `M.${area}.N.000000.4.ANR`, 'ECB – HICP, annual rate of change');
+// The ECB replaced its ICP dataset with HICP (ECOICOP 2, from Jan 2026 data);
+// ICP series are frozen at Dec 2025 and are kept only as a fallback.
+const ecbHicp = (area) => ecb('HICP', `M.${area}.N.000000.4D0.ANR`, 'ECB – HICP, annual rate of change');
+const ecbIcpLegacy = (area) => ecb('ICP', `M.${area}.N.000000.4.ANR`, 'ECB – HICP, annual rate of change');
 const ecbMortgage = (area) =>
     ecb('MIR', `M.${area}.B.A2C.AM.R.A.2250.EUR.N`, 'ECB – bank rates on new loans for house purchase');
 
@@ -179,7 +182,7 @@ async function worldBankInflation(iso3) {
 
 const euro = (area, iso3) => ({
     mortgage: [() => ecbMortgage(area)],
-    inflation: [() => ecbHicp(area), () => worldBankInflation(iso3)],
+    inflation: [() => ecbHicp(area), () => ecbIcpLegacy(area), () => worldBankInflation(iso3)],
 });
 
 const COUNTRIES = {
@@ -201,7 +204,7 @@ const COUNTRIES = {
     },
     CZ: {
         mortgage: [],
-        inflation: [() => ecbHicp('CZ'), () => worldBankInflation('CZE')],
+        inflation: [() => ecbHicp('CZ'), () => ecbIcpLegacy('CZ'), () => worldBankInflation('CZE')],
     },
     EA: euro('U2', 'EMU'),
     AT: euro('AT', 'AUT'),
@@ -231,17 +234,29 @@ async function loadPrevious() {
     }
 }
 
+// A value is current if its period is at most 6 months old ('YYYY-MM' or
+// 'YYYY-MM-DD'), or for annual data ('YYYY') from at most two years ago.
+function isCurrent(period, now = new Date()) {
+    const [y, m] = String(period).split('-').map(Number);
+    if (!Number.isFinite(y)) return false;
+    if (!m) return y >= now.getUTCFullYear() - 2;
+    const ageMonths = (now.getUTCFullYear() - y) * 12 + (now.getUTCMonth() + 1 - m);
+    return ageMonths <= 6;
+}
+
 async function resolve(sources, previous, label) {
     const errors = [];
     for (const source of sources) {
         try {
-            return { ...(await source()), fetchedAt: new Date().toISOString() };
+            const result = await source();
+            if (!isCurrent(result.period)) throw new Error(`stale data (${result.period}) from ${result.source}`);
+            return { ...result, fetchedAt: new Date().toISOString() };
         } catch (err) {
             errors.push(err.message);
         }
     }
     if (sources.length) console.warn(`${label}: all sources failed:\n  ${errors.join('\n  ')}`);
-    if (previous) {
+    if (previous && isCurrent(previous.period)) {
         console.warn(`${label}: keeping previous value from ${previous.fetchedAt}`);
         return previous;
     }
