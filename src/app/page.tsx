@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateMortgage } from '@/utils/calculations';
+import { COUNTRIES, CurrencyCode, RateValue, RatesFile } from '@/utils/countries';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,8 +29,6 @@ ChartJS.register(
   Filler
 );
 
-type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'CAD' | 'CZK';
-
 const CURRENCIES: Record<CurrencyCode, string> = {
   USD: '$',
   EUR: '€',
@@ -37,6 +36,22 @@ const CURRENCIES: Record<CurrencyCode, string> = {
   JPY: '¥',
   CAD: 'C$',
   CZK: 'Kč',
+};
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
+type RatesStatus =
+  | { state: 'idle' }
+  | { state: 'loading' }
+  | { state: 'done'; filled: { label: string; rate: RateValue }[]; missing: string[] }
+  | { state: 'error'; message: string };
+
+// Periods come as 'YYYY', 'YYYY-MM' or 'YYYY-MM-DD'
+const formatPeriod = (period: string) => {
+  const [y, m, d] = period.split('-').map(Number);
+  if (!m) return String(y);
+  const date = new Date(Date.UTC(y, m - 1, d || 1));
+  return date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', ...(d ? { day: 'numeric' } : {}) });
 };
 
 export default function Home() {
@@ -51,6 +66,8 @@ export default function Home() {
   const [continueInvestingAfterPayoff, setContinueInvestingAfterPayoff] = useState(true);
   const [postPayoffInvestmentAmount, setPostPayoffInvestmentAmount] = useState(0);
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [country, setCountry] = useState('US');
+  const [ratesStatus, setRatesStatus] = useState<RatesStatus>({ state: 'idle' });
   const [showInflationAdjusted, setShowInflationAdjusted] = useState(false);
 
   // Column visibility state
@@ -71,6 +88,41 @@ export default function Home() {
     netWorthA: true,
     netWorthB: true
   });
+
+  const selectCountry = (code: string) => {
+    setCountry(code);
+    const match = COUNTRIES.find(c => c.code === code);
+    if (match) setCurrency(match.currency);
+    setRatesStatus({ state: 'idle' });
+  };
+
+  // rates.json is refreshed daily by the deploy workflow (scripts/fetch-rates.mjs)
+  const loadCurrentRates = async () => {
+    setRatesStatus({ state: 'loading' });
+    try {
+      const res = await fetch(`${BASE_PATH}/rates.json`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: RatesFile = await res.json();
+      const entry = data.countries?.[country];
+      const filled: { label: string; rate: RateValue }[] = [];
+      const missing: string[] = [];
+      if (entry?.mortgage) {
+        setRate(entry.mortgage.value);
+        filled.push({ label: 'Mortgage rate', rate: entry.mortgage });
+      } else {
+        missing.push('mortgage rate');
+      }
+      if (entry?.inflation) {
+        setInflationRate(entry.inflation.value);
+        filled.push({ label: 'Inflation', rate: entry.inflation });
+      } else {
+        missing.push('inflation');
+      }
+      setRatesStatus({ state: 'done', filled, missing });
+    } catch {
+      setRatesStatus({ state: 'error', message: 'Current rates are not available right now. Please try again later or enter the rates manually.' });
+    }
+  };
 
   const toggleColumn = (column: keyof typeof visibleColumns) => {
     setVisibleColumns(prev => ({ ...prev, [column]: !prev[column] }));
@@ -148,17 +200,55 @@ export default function Home() {
             * Reliefs from Interest and Taxes are not considered
           </div>
         </div>
-        <select value={currency} onChange={(e) => setCurrency(e.target.value as CurrencyCode)} style={{ width: 'auto' }}>
-          {Object.keys(CURRENCIES).map(code => (
-            <option key={code} value={code}>{CURRENCIES[code as CurrencyCode]} {code}</option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <select aria-label="Country" value={country} onChange={(e) => selectCountry(e.target.value)} style={{ width: 'auto' }}>
+            {COUNTRIES.map(c => (
+              <option key={c.code} value={c.code}>{c.name}</option>
+            ))}
+          </select>
+          <select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value as CurrencyCode)} style={{ width: 'auto' }}>
+            {Object.keys(CURRENCIES).map(code => (
+              <option key={code} value={code}>{CURRENCIES[code as CurrencyCode]} {code}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'stretch' }}>
         {/* Inputs */}
         <div className="card" style={{ marginBottom: 0, padding: '20px' }}>
+          {/* Current rates */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #e5e7eb' }}>
+            <button
+              type="button"
+              onClick={loadCurrentRates}
+              disabled={ratesStatus.state === 'loading'}
+              style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', backgroundColor: '#4f46e5', border: 'none', borderRadius: '6px', cursor: ratesStatus.state === 'loading' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: ratesStatus.state === 'loading' ? 0.7 : 1 }}
+            >
+              {ratesStatus.state === 'loading' ? 'Loading…' : `Use current rates for ${COUNTRIES.find(c => c.code === country)?.name}`}
+            </button>
+            <div style={{ fontSize: '12px', color: '#666', lineHeight: 1.5, alignSelf: 'center' }}>
+              {ratesStatus.state === 'idle' && 'Fills in the latest published mortgage rate and inflation for the selected country.'}
+              {ratesStatus.state === 'error' && <span style={{ color: '#dc2626' }}>{ratesStatus.message}</span>}
+              {ratesStatus.state === 'done' && (
+                <>
+                  {ratesStatus.filled.map(({ label, rate }) => (
+                    <div key={label}>
+                      <strong>{label}: {rate.value}%</strong> ({formatPeriod(rate.period)}) –{' '}
+                      <a href={rate.url} target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5' }}>{rate.source}</a>
+                    </div>
+                  ))}
+                  {ratesStatus.missing.length > 0 && (
+                    <div style={{ color: '#b45309' }}>
+                      No current {ratesStatus.missing.join(' or ')} available for this country – please enter it manually.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
             {/* Loan Details */}
             <div>
@@ -627,7 +717,7 @@ export default function Home() {
         color: '#666'
       }}>
         <Image
-          src="/TrueCalc/blacktree-logo.png"
+          src={`${BASE_PATH}/blacktree-logo.png`}
           alt="Blacktree Studio"
           width={180}
           height={60}
