@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
-const basePath = '/TrueCalc';
-
+// Keep basePath a plain string literal: actions/configure-pages rewrites this
+// property in CI and produces invalid JS for shorthand (`basePath,`).
 const nextConfig = {
     output: 'export',
-    basePath,
+    basePath: '/TrueCalc',
     env: {
-        NEXT_PUBLIC_BASE_PATH: basePath,
+        NEXT_PUBLIC_BASE_PATH: '/TrueCalc',
     },
     images: {
         unoptimized: true,
