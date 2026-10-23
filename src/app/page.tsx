@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateMortgage } from '@/utils/calculations';
@@ -68,6 +68,42 @@ export default function Home() {
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [country, setCountry] = useState('US');
   const [ratesStatus, setRatesStatus] = useState<RatesStatus>({ state: 'idle' });
+  // Column description opened by clicking/tapping its ⓘ icon (touch screens have no hover)
+  const [openTooltip, setOpenTooltip] = useState<{ key: string; text: string; left: number; top: number; above: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!openTooltip) return;
+    const close = () => setOpenTooltip(null);
+    document.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openTooltip]);
+
+  const toggleTooltip = (e: React.MouseEvent<HTMLElement>, key: string, text: string) => {
+    e.stopPropagation(); // Keep the document click handler from closing it right away
+    if (openTooltip?.key === key) {
+      setOpenTooltip(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = 220;
+    // Measure against the visible area: on phones the page can be wider than the
+    // screen, which makes window.innerWidth/innerHeight larger than what is shown
+    const vv = window.visualViewport;
+    const viewLeft = vv?.offsetLeft ?? 0;
+    const viewTop = vv?.offsetTop ?? 0;
+    const viewWidth = vv?.width ?? window.innerWidth;
+    const viewHeight = vv?.height ?? window.innerHeight;
+    const left = Math.min(Math.max(viewLeft + 8, rect.left + rect.width / 2 - width / 2), viewLeft + viewWidth - width - 8);
+    // Open above the icon when there is no room below it (e.g. icon at the bottom of a phone screen)
+    const above = rect.bottom + 100 > viewTop + viewHeight;
+    setOpenTooltip({ key, text, left, top: above ? rect.top - 6 : rect.bottom + 6, above });
+  };
   const [showInflationAdjusted, setShowInflationAdjusted] = useState(false);
 
   // Column visibility state
@@ -618,7 +654,7 @@ export default function Home() {
             </div>
           </div>
           <div style={{ marginBottom: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '4px', fontSize: '12px' }}>
-            <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over ⓘ for explanations.
+            <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over or tap ⓘ for explanations.
             {Object.values(visibleColumns).filter(v => !v).length > 0 && (
               <span style={{ marginLeft: '10px', color: '#f59e0b', fontWeight: '600' }}>
                 ({Object.values(visibleColumns).filter(v => !v).length} column{Object.values(visibleColumns).filter(v => !v).length !== 1 ? 's' : ''} hidden)
@@ -654,7 +690,18 @@ export default function Home() {
                             style={{ cursor: 'pointer', margin: 0 }}
                           />
                           <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`About ${col.label}`}
+                            aria-expanded={openTooltip?.key === col.key}
                             title={col.tooltip}
+                            onClick={(e) => toggleTooltip(e, col.key, col.tooltip)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.currentTarget.click();
+                              }
+                            }}
                             style={{
                               display: 'inline-block',
                               width: '12px',
@@ -706,6 +753,29 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {openTooltip && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            top: openTooltip.top,
+            left: openTooltip.left,
+            transform: openTooltip.above ? 'translateY(-100%)' : undefined,
+            width: '220px',
+            zIndex: 1000,
+            padding: '8px 10px',
+            background: '#1f2937',
+            color: '#fff',
+            fontSize: '12px',
+            lineHeight: 1.4,
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+          }}
+        >
+          {openTooltip.text}
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{
