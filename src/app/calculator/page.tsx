@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
+import { useResolvedTheme } from '@/hooks/useTheme';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateMortgage } from '@/utils/calculations';
 import { COUNTRIES, CurrencyCode, RateValue, RatesFile } from '@/utils/countries';
@@ -41,18 +43,32 @@ const CURRENCIES: Record<CurrencyCode, string> = {
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
-// Chart.js draws on a canvas, so it needs literal colours (same palette as globals.css)
-const CHART = {
-  text: '#e7edf7',
-  muted: '#8d9bb3',
-  dim: '#64748b',
-  panel: '#101a2e',
-  line: 'rgba(148, 163, 184, 0.28)',
-  grid: 'rgba(148, 163, 184, 0.12)',
-  green: '#34d399',
-  indigo: '#818cf8',
-  red: '#f87171',
-  redSoft: '#fca5a5',
+// Chart.js draws on a canvas, so it needs literal colours (same palettes as globals.css)
+const CHART_COLORS = {
+  dark: {
+    text: '#e7edf7',
+    muted: '#8d9bb3',
+    dim: '#64748b',
+    panel: '#101a2e',
+    line: 'rgba(148, 163, 184, 0.28)',
+    grid: 'rgba(148, 163, 184, 0.12)',
+    green: '#34d399',
+    indigo: '#818cf8',
+    red: '#f87171',
+    redSoft: '#fca5a5',
+  },
+  light: {
+    text: '#0f172a',
+    muted: '#526078',
+    dim: '#8592a6',
+    panel: '#ffffff',
+    line: 'rgba(15, 23, 42, 0.16)',
+    grid: 'rgba(15, 23, 42, 0.07)',
+    green: '#059669',
+    indigo: '#4f46e5',
+    red: '#dc2626',
+    redSoft: '#f87171',
+  },
 };
 
 // Highlight for the scenario with the higher net worth
@@ -87,6 +103,7 @@ export default function Home() {
   const [country, setCountry] = useState('US');
   const [ratesStatus, setRatesStatus] = useState<RatesStatus>({ state: 'idle' });
   // Column description opened by clicking/tapping its ⓘ icon (touch screens have no hover)
+  const CHART = CHART_COLORS[useResolvedTheme()];
   const [openTooltip, setOpenTooltip] = useState<{ key: string; text: string; left: number; top: number; above: boolean } | null>(null);
 
   useEffect(() => {
@@ -259,6 +276,7 @@ export default function Home() {
           </div>
         </div>
         <div className="header-selects">
+          <ThemeToggle />
           <select aria-label="Country" value={country} onChange={(e) => selectCountry(e.target.value)} style={{ width: 'auto' }}>
             {COUNTRIES.map(c => (
               <option key={c.code} value={c.code}>{c.name}</option>
@@ -662,7 +680,7 @@ export default function Home() {
                 })}
                 style={{
                   padding: '6px 12px',
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: 'var(--tint)',
                   color: 'var(--text)',
                   border: '1px solid var(--line-strong)',
                   borderRadius: '6px',
@@ -675,7 +693,7 @@ export default function Home() {
               </button>
             </div>
           </div>
-          <div style={{ marginBottom: '10px', padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--line)', borderRadius: '8px', fontSize: '12px', color: 'var(--muted)' }}>
+          <div style={{ marginBottom: '10px', padding: '10px 12px', background: 'var(--tint)', border: '1px solid var(--line)', borderRadius: '8px', fontSize: '12px', color: 'var(--muted)' }}>
             <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over or tap ⓘ for explanations.
             {Object.values(visibleColumns).filter(v => !v).length > 0 && (
               <span style={{ marginLeft: '10px', color: 'var(--amber)', fontWeight: '600' }}>
@@ -818,11 +836,9 @@ export default function Home() {
             width: '180px',
             height: 'auto',
             marginBottom: '12px',
-            opacity: 0.85,
-            // Dark-on-light logo: invert it and let its background blend into the page
-            filter: 'invert(1) hue-rotate(180deg) contrast(1.4)',
-            mixBlendMode: 'screen'
+            opacity: 0.85
           }}
+          className="brand-logo"
         />
         <p style={{ margin: '0 0 8px 0' }}>Created by Blacktree Studio - All rights reserved</p>
         <p style={{ margin: 0 }}>

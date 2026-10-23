@@ -4,7 +4,9 @@
   box-sizing: border-box;
 }
 
-/* Palette shared with the landing page (src/app/landing.module.css) */
+/* Theme palette, shared by the landing page and the calculator.
+   The theme is set as data-theme="dark" | "light" on <html> by the script in
+   layout.tsx (saved choice, or the system setting for "Auto"). Dark is the default. */
 :root {
   color-scheme: dark;
   --bg: #060a13;
@@ -20,6 +22,45 @@
   --indigo: #818cf8;
   --red: #f87171;
   --amber: #fbbf24;
+  --tint: rgba(255, 255, 255, 0.03);
+  --glow-green: rgba(16, 185, 129, 0.14);
+  --glow-indigo: rgba(99, 102, 241, 0.13);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.45);
+  --overlay: rgba(6, 10, 19, 0.75);
+  --zero-line: rgba(148, 163, 184, 0.35);
+  /* The logo is dark on an off-white background: in dark mode invert it and
+     let its (then black) background blend into the page */
+  --logo-filter: invert(1) hue-rotate(180deg) contrast(1.4);
+  --logo-blend: screen;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --panel-2: #fbfcfe;
+  --field: #ffffff;
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.16);
+  --text: #0f172a;
+  --muted: #526078;
+  --dim: #8592a6;
+  --green: #059669;
+  --indigo: #4f46e5;
+  --red: #dc2626;
+  --amber: #b45309;
+  --tint: rgba(15, 23, 42, 0.03);
+  --glow-green: rgba(16, 185, 129, 0.10);
+  --glow-indigo: rgba(99, 102, 241, 0.08);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --overlay: rgba(255, 255, 255, 0.85);
+  --zero-line: rgba(71, 85, 105, 0.35);
+  /* Light mode: brighten the off-white background to pure white, which the
+     multiply blend then makes disappear into the page */
+  --logo-filter: brightness(1.12) contrast(1.15);
+  --logo-blend: multiply;
 }
 
 body {
@@ -27,8 +68,8 @@ body {
   color: var(--text);
   line-height: 1.6;
   background:
-    radial-gradient(900px 500px at 85% -10%, rgba(16, 185, 129, 0.12), transparent 60%),
-    radial-gradient(700px 450px at 0% 10%, rgba(99, 102, 241, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 85% -10%, var(--glow-green), transparent 60%),
+    radial-gradient(700px 450px at 0% 10%, var(--glow-indigo), transparent 60%),
     linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
     linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
     var(--bg);
@@ -47,7 +88,7 @@ body {
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow);
 }
 
 input[type="number"],
@@ -149,11 +190,57 @@ td:first-child {
 }
 
 tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint);
+}
+
+/* Logo (dark artwork on an off-white background), adapted per theme */
+.brand-logo {
+  filter: var(--logo-filter);
+  mix-blend-mode: var(--logo-blend);
+}
+
+/* Light / Dark / Auto switch (components/ThemeToggle.tsx) */
+.theme-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--tint);
+}
+
+.theme-toggle button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.theme-toggle button:hover {
+  color: var(--text);
+}
+
+.theme-toggle button[aria-checked="true"] {
+  background: var(--panel-2);
+  color: var(--green);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.theme-toggle button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
 }
 
 /* Layout */
 .page-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -261,6 +348,13 @@ tr:hover {
   .header-selects select {
     flex: 1;
     min-width: 0;
+  }
+
+  /* Theme switch moves up next to the title, giving the selects the full row */
+  .header-selects .theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
   }
 
   .inputs-grid {
