@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateMortgage } from '@/utils/calculations';
@@ -68,6 +68,42 @@ export default function Home() {
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [country, setCountry] = useState('US');
   const [ratesStatus, setRatesStatus] = useState<RatesStatus>({ state: 'idle' });
+  // Column description opened by clicking/tapping its ⓘ icon (touch screens have no hover)
+  const [openTooltip, setOpenTooltip] = useState<{ key: string; text: string; left: number; top: number; above: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!openTooltip) return;
+    const close = () => setOpenTooltip(null);
+    document.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openTooltip]);
+
+  const toggleTooltip = (e: React.MouseEvent<HTMLElement>, key: string, text: string) => {
+    e.stopPropagation(); // Keep the document click handler from closing it right away
+    if (openTooltip?.key === key) {
+      setOpenTooltip(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = 220;
+    // Measure against the visible area: on phones the page can be wider than the
+    // screen, which makes window.innerWidth/innerHeight larger than what is shown
+    const vv = window.visualViewport;
+    const viewLeft = vv?.offsetLeft ?? 0;
+    const viewTop = vv?.offsetTop ?? 0;
+    const viewWidth = vv?.width ?? window.innerWidth;
+    const viewHeight = vv?.height ?? window.innerHeight;
+    const left = Math.min(Math.max(viewLeft + 8, rect.left + rect.width / 2 - width / 2), viewLeft + viewWidth - width - 8);
+    // Open above the icon when there is no room below it (e.g. icon at the bottom of a phone screen)
+    const above = rect.bottom + 100 > viewTop + viewHeight;
+    setOpenTooltip({ key, text, left, top: above ? rect.top - 6 : rect.bottom + 6, above });
+  };
   const [showInflationAdjusted, setShowInflationAdjusted] = useState(false);
 
   // Column visibility state
@@ -170,6 +206,10 @@ export default function Home() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(val);
 
+  // For the summary cards: a normal space after a currency code (e.g. "CZK 7,720,949")
+  // lets narrow phone cards wrap there instead of in the middle of the number
+  const formatSummary = (val: number) => formatCurrency(val).replace(/\u00a0/g, ' ');
+
   // Column definitions with tooltips
   const columnDefs = [
     { key: 'month', label: 'Month', tooltip: 'Month number in the loan term' },
@@ -191,7 +231,7 @@ export default function Home() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div className="page-header">
         <div>
           <h1>TrueCalc  </h1>
           <p style={{ color: '#666' }}>Compare extra mortgage down payment vs. investing your money. No opinios, make your decission based on Math.</p>
@@ -200,7 +240,7 @@ export default function Home() {
             * Reliefs from Interest and Taxes are not considered
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="header-selects">
           <select aria-label="Country" value={country} onChange={(e) => selectCountry(e.target.value)} style={{ width: 'auto' }}>
             {COUNTRIES.map(c => (
               <option key={c.code} value={c.code}>{c.name}</option>
@@ -249,7 +289,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+          <div className="inputs-grid">
             {/* Loan Details */}
             <div>
               <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Loan Details</h2>
@@ -354,7 +394,7 @@ export default function Home() {
           </div>
 
           {/* Summary Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px', flexShrink: 0 }}>
+          <div className="scenarios-grid">
             {(() => {
               const investmentYield = showInflationAdjusted
                 ? result.investmentComparison.investmentYieldReal
@@ -387,41 +427,41 @@ export default function Home() {
               return (
                 <>
                   {/* Scenario A: Pay Off Early & Invest */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', color: '#4f46e5' }}>Scenario A: Pay Off Early & Invest</h3>
-                    <div className="card" style={{ background: strategyAIsBetter ? '#dcfce7' : '#fff', border: strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
+                  <div className="scenario-col">
+                    <h3 className="scenario-title" style={{ color: '#4f46e5' }}>Scenario A: Pay Off Early & Invest</h3>
+                    <div className="card net-card" style={{ background: strategyAIsBetter ? '#dcfce7' : '#fff', border: strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
                       <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: strategyAIsBetter ? '#059669' : '#333' }}>{formatCurrency(netWorthA)}</div>
+                      <div className="net-value" style={{ color: strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthA)}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Cumulative Interest</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(cumulativeInterestA)}</div>
+                    <div className="stat-grid">
+                      <div className="card stat-card">
+                        <h3>Cumulative Interest</h3>
+                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestA)}</div>
                       </div>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Inv. Yield</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#10b981' }}>{formatCurrency(paydownSavingsGrowth)}</div>
+                      <div className="card stat-card">
+                        <h3>Inv. Yield</h3>
+                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(paydownSavingsGrowth)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Scenario B: Invest the Difference */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', color: '#059669' }}>Scenario B: Invest the Difference</h3>
-                    <div className="card" style={{ background: !strategyAIsBetter ? '#dcfce7' : '#fff', border: !strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
+                  <div className="scenario-col">
+                    <h3 className="scenario-title" style={{ color: '#059669' }}>Scenario B: Invest the Difference</h3>
+                    <div className="card net-card" style={{ background: !strategyAIsBetter ? '#dcfce7' : '#fff', border: !strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
                       <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: !strategyAIsBetter ? '#059669' : '#333' }}>{formatCurrency(netWorthB)}</div>
+                      <div className="net-value" style={{ color: !strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthB)}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Cumulative Interest</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(cumulativeInterestB)}</div>
+                    <div className="stat-grid">
+                      <div className="card stat-card">
+                        <h3>Cumulative Interest</h3>
+                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestB)}</div>
                       </div>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Inv. Yield</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#10b981' }}>{formatCurrency(investmentYield)}</div>
+                      <div className="card stat-card">
+                        <h3>Inv. Yield</h3>
+                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(investmentYield)}</div>
                       </div>
                     </div>
                   </div>
@@ -433,7 +473,7 @@ export default function Home() {
           {/* Chart */}
           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: 0 }}>
             <h3>Financial Projection</h3>
-            <div style={{ flex: 1, minHeight: '300px' }}>
+            <div style={{ flex: 1, minHeight: '300px', minWidth: 0, position: 'relative' }}>
               <Line
                 data={{
                   labels: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => `Y${Math.floor(d.month / 12)}`),
@@ -550,7 +590,7 @@ export default function Home() {
 
         {/* Table - Full Width */}
         <div className="card" style={{ marginTop: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div className="table-toolbar">
             <h3 style={{ margin: 0 }}>Amortization Schedule ({result.schedule.length} months)</h3>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -618,7 +658,7 @@ export default function Home() {
             </div>
           </div>
           <div style={{ marginBottom: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '4px', fontSize: '12px' }}>
-            <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over ⓘ for explanations.
+            <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over or tap ⓘ for explanations.
             {Object.values(visibleColumns).filter(v => !v).length > 0 && (
               <span style={{ marginLeft: '10px', color: '#f59e0b', fontWeight: '600' }}>
                 ({Object.values(visibleColumns).filter(v => !v).length} column{Object.values(visibleColumns).filter(v => !v).length !== 1 ? 's' : ''} hidden)
@@ -654,7 +694,18 @@ export default function Home() {
                             style={{ cursor: 'pointer', margin: 0 }}
                           />
                           <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`About ${col.label}`}
+                            aria-expanded={openTooltip?.key === col.key}
                             title={col.tooltip}
+                            onClick={(e) => toggleTooltip(e, col.key, col.tooltip)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.currentTarget.click();
+                              }
+                            }}
                             style={{
                               display: 'inline-block',
                               width: '12px',
@@ -706,6 +757,29 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {openTooltip && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            top: openTooltip.top,
+            left: openTooltip.left,
+            transform: openTooltip.above ? 'translateY(-100%)' : undefined,
+            width: '220px',
+            zIndex: 1000,
+            padding: '8px 10px',
+            background: '#1f2937',
+            color: '#fff',
+            fontSize: '12px',
+            lineHeight: 1.4,
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+          }}
+        >
+          {openTooltip.text}
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{
