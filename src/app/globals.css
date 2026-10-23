@@ -169,6 +169,9 @@ tr:hover {
 
 .stat-card {
   padding: 15px;
+  /* Value sits at the bottom, so values line up when one label wraps to two lines */
+  display: flex;
+  flex-direction: column;
 }
 
 .stat-card h3 {
@@ -176,6 +179,7 @@ tr:hover {
 }
 
 .stat-value {
+  margin-top: auto;
   font-size: clamp(10px, 20cqi, 16px);
   font-weight: bold;
   overflow-wrap: break-word;
