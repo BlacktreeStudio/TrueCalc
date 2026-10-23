@@ -206,6 +206,10 @@ export default function Home() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(val);
 
+  // For the summary cards: a normal space after a currency code (e.g. "CZK 7,720,949")
+  // lets narrow phone cards wrap there instead of in the middle of the number
+  const formatSummary = (val: number) => formatCurrency(val).replace(/\u00a0/g, ' ');
+
   // Column definitions with tooltips
   const columnDefs = [
     { key: 'month', label: 'Month', tooltip: 'Month number in the loan term' },
@@ -423,41 +427,41 @@ export default function Home() {
               return (
                 <>
                   {/* Scenario A: Pay Off Early & Invest */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', color: '#4f46e5' }}>Scenario A: Pay Off Early & Invest</h3>
-                    <div className="card" style={{ background: strategyAIsBetter ? '#dcfce7' : '#fff', border: strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
+                  <div className="scenario-col">
+                    <h3 className="scenario-title" style={{ color: '#4f46e5' }}>Scenario A: Pay Off Early & Invest</h3>
+                    <div className="card net-card" style={{ background: strategyAIsBetter ? '#dcfce7' : '#fff', border: strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
                       <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: strategyAIsBetter ? '#059669' : '#333' }}>{formatCurrency(netWorthA)}</div>
+                      <div className="net-value" style={{ color: strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthA)}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Cumulative Interest</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(cumulativeInterestA)}</div>
+                    <div className="stat-grid">
+                      <div className="card stat-card">
+                        <h3>Cumulative Interest</h3>
+                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestA)}</div>
                       </div>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Inv. Yield</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#10b981' }}>{formatCurrency(paydownSavingsGrowth)}</div>
+                      <div className="card stat-card">
+                        <h3>Inv. Yield</h3>
+                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(paydownSavingsGrowth)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Scenario B: Invest the Difference */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', color: '#059669' }}>Scenario B: Invest the Difference</h3>
-                    <div className="card" style={{ background: !strategyAIsBetter ? '#dcfce7' : '#fff', border: !strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
+                  <div className="scenario-col">
+                    <h3 className="scenario-title" style={{ color: '#059669' }}>Scenario B: Invest the Difference</h3>
+                    <div className="card net-card" style={{ background: !strategyAIsBetter ? '#dcfce7' : '#fff', border: !strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
                       <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: !strategyAIsBetter ? '#059669' : '#333' }}>{formatCurrency(netWorthB)}</div>
+                      <div className="net-value" style={{ color: !strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthB)}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Cumulative Interest</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(cumulativeInterestB)}</div>
+                    <div className="stat-grid">
+                      <div className="card stat-card">
+                        <h3>Cumulative Interest</h3>
+                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestB)}</div>
                       </div>
-                      <div className="card" style={{ padding: '15px' }}>
-                        <h3 style={{ fontSize: '12px' }}>Inv. Yield</h3>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#10b981' }}>{formatCurrency(investmentYield)}</div>
+                      <div className="card stat-card">
+                        <h3>Inv. Yield</h3>
+                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(investmentYield)}</div>
                       </div>
                     </div>
                   </div>
