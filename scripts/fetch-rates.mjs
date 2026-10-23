@@ -83,8 +83,11 @@ async function ecb(flow, key, label) {
 // ICP series are frozen at Dec 2025 and are kept only as a fallback.
 const ecbHicp = (area) => ecb('HICP', `M.${area}.N.000000.4D0.ANR`, 'ECB – HICP, annual rate of change');
 const ecbIcpLegacy = (area) => ecb('ICP', `M.${area}.N.000000.4.ANR`, 'ECB – HICP, annual rate of change');
-const ecbMortgage = (area) =>
-    ecb('MIR', `M.${area}.B.A2C.AM.R.A.2250.EUR.N`, 'ECB – bank rates on new loans for house purchase');
+// MFI interest rates on new loans to households for house purchase. The ECB also
+// publishes these for non-euro EU countries in their own currency (e.g. CZ in CZK).
+// Rate fixation: 'AM' = all fixation periods, 'I' = over 1 and up to 5 years.
+const ecbMortgage = (area, currency = 'EUR', fixation = 'AM', label = 'ECB – bank rates on new loans for house purchase') =>
+    ecb('MIR', `M.${area}.B.A2C.${fixation}.R.A.2250.${currency}.N`, label);
 
 // FRED (St. Louis Fed) public CSV download, no API key needed.
 async function fredSeries(id) {
@@ -203,7 +206,10 @@ const COUNTRIES = {
         inflation: [() => fredYoY('JPNCPIALLMINMEI', 'OECD – CPI, year over year (via FRED)'), () => worldBankInflation('JPN')],
     },
     CZ: {
-        mortgage: [],
+        mortgage: [
+            () => ecbMortgage('CZ', 'CZK', 'AM', 'ECB/ČNB – bank rates on new loans for house purchase'),
+            () => ecbMortgage('CZ', 'CZK', 'I', 'ECB/ČNB – bank rates on new loans for house purchase, 1–5 year fixation'),
+        ],
         inflation: [() => ecbHicp('CZ'), () => ecbIcpLegacy('CZ'), () => worldBankInflation('CZE')],
     },
     EA: euro('U2', 'EMU'),
