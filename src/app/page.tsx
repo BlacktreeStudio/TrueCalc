@@ -227,7 +227,7 @@ export default function Home() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div className="page-header">
         <div>
           <h1>TrueCalc  </h1>
           <p style={{ color: '#666' }}>Compare extra mortgage down payment vs. investing your money. No opinios, make your decission based on Math.</p>
@@ -236,7 +236,7 @@ export default function Home() {
             * Reliefs from Interest and Taxes are not considered
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="header-selects">
           <select aria-label="Country" value={country} onChange={(e) => selectCountry(e.target.value)} style={{ width: 'auto' }}>
             {COUNTRIES.map(c => (
               <option key={c.code} value={c.code}>{c.name}</option>
@@ -285,7 +285,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+          <div className="inputs-grid">
             {/* Loan Details */}
             <div>
               <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Loan Details</h2>
@@ -390,7 +390,7 @@ export default function Home() {
           </div>
 
           {/* Summary Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px', flexShrink: 0 }}>
+          <div className="scenarios-grid">
             {(() => {
               const investmentYield = showInflationAdjusted
                 ? result.investmentComparison.investmentYieldReal
@@ -469,7 +469,7 @@ export default function Home() {
           {/* Chart */}
           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: 0 }}>
             <h3>Financial Projection</h3>
-            <div style={{ flex: 1, minHeight: '300px' }}>
+            <div style={{ flex: 1, minHeight: '300px', minWidth: 0, position: 'relative' }}>
               <Line
                 data={{
                   labels: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => `Y${Math.floor(d.month / 12)}`),
@@ -586,7 +586,7 @@ export default function Home() {
 
         {/* Table - Full Width */}
         <div className="card" style={{ marginTop: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div className="table-toolbar">
             <h3 style={{ margin: 0 }}>Amortization Schedule ({result.schedule.length} months)</h3>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button

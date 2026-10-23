@@ -97,3 +97,69 @@ td:first-child {
 tr:hover {
   background: #fafafa;
 }
+/* Layout */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.header-selects {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.scenarios-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Tablets: two input columns */
+@media (max-width: 900px) {
+  .inputs-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Phones (portrait): stack everything */
+@media (max-width: 600px) {
+  .container {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-selects select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .inputs-grid,
+  .scenarios-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
