@@ -1,812 +1,234 @@
-'use client';
-
-import { useState, useMemo, useEffect } from 'react';
-import Image from 'next/image';
-import { useDebounce } from '@/hooks/useDebounce';
+import Link from 'next/link';
+import type { Metadata } from 'next';
 import { calculateMortgage } from '@/utils/calculations';
-import { COUNTRIES, CurrencyCode, RateValue, RatesFile } from '@/utils/countries';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import RatesTicker from '@/components/RatesTicker';
+import styles from './landing.module.css';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
-
-const CURRENCIES: Record<CurrencyCode, string> = {
-  USD: '$',
-  EUR: '€',
-  GBP: '£',
-  JPY: '¥',
-  CAD: 'C$',
-  CZK: 'Kč',
+export const metadata: Metadata = {
+  title: 'TrueCalc – Pay off your mortgage or invest the difference?',
+  description:
+    'TrueCalc compares paying extra on your mortgage with investing the money, month by month, and shows which leaves you with more net worth.',
 };
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
-type RatesStatus =
-  | { state: 'idle' }
-  | { state: 'loading' }
-  | { state: 'done'; filled: { label: string; rate: RateValue }[]; missing: string[] }
-  | { state: 'error'; message: string };
+// Same defaults as the calculator, so the example matches what users see there
+const EXAMPLE = { principal: 300000, rate: 5.5, years: 30, extra: 200, invRate: 7, inflation: 2.5 };
 
-// Periods come as 'YYYY', 'YYYY-MM' or 'YYYY-MM-DD'
-const formatPeriod = (period: string) => {
-  const [y, m, d] = period.split('-').map(Number);
-  if (!m) return String(y);
-  const date = new Date(Date.UTC(y, m - 1, d || 1));
-  return date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', ...(d ? { day: 'numeric' } : {}) });
-};
-
-export default function Home() {
-  const [principal, setPrincipal] = useState(300000);
-  const [rate, setRate] = useState(5.5);
-  const [years, setYears] = useState(30);
-  const [extraPayment, setExtraPayment] = useState(200);
-  const [investmentRate, setInvestmentRate] = useState(7);
-  const [inflationRate, setInflationRate] = useState(2.5);
-  const [oneTimePaymentAmount, setOneTimePaymentAmount] = useState(0);
-  const [oneTimePaymentMonth, setOneTimePaymentMonth] = useState(0);
-  const [continueInvestingAfterPayoff, setContinueInvestingAfterPayoff] = useState(true);
-  const [postPayoffInvestmentAmount, setPostPayoffInvestmentAmount] = useState(0);
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
-  const [country, setCountry] = useState('US');
-  const [ratesStatus, setRatesStatus] = useState<RatesStatus>({ state: 'idle' });
-  // Column description opened by clicking/tapping its ⓘ icon (touch screens have no hover)
-  const [openTooltip, setOpenTooltip] = useState<{ key: string; text: string; left: number; top: number; above: boolean } | null>(null);
-
-  useEffect(() => {
-    if (!openTooltip) return;
-    const close = () => setOpenTooltip(null);
-    document.addEventListener('click', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => {
-      document.removeEventListener('click', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-    };
-  }, [openTooltip]);
-
-  const toggleTooltip = (e: React.MouseEvent<HTMLElement>, key: string, text: string) => {
-    e.stopPropagation(); // Keep the document click handler from closing it right away
-    if (openTooltip?.key === key) {
-      setOpenTooltip(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const width = 220;
-    // Measure against the visible area: on phones the page can be wider than the
-    // screen, which makes window.innerWidth/innerHeight larger than what is shown
-    const vv = window.visualViewport;
-    const viewLeft = vv?.offsetLeft ?? 0;
-    const viewTop = vv?.offsetTop ?? 0;
-    const viewWidth = vv?.width ?? window.innerWidth;
-    const viewHeight = vv?.height ?? window.innerHeight;
-    const left = Math.min(Math.max(viewLeft + 8, rect.left + rect.width / 2 - width / 2), viewLeft + viewWidth - width - 8);
-    // Open above the icon when there is no room below it (e.g. icon at the bottom of a phone screen)
-    const above = rect.bottom + 100 > viewTop + viewHeight;
-    setOpenTooltip({ key, text, left, top: above ? rect.top - 6 : rect.bottom + 6, above });
+function buildExample() {
+  const { principal, rate, years, extra, invRate, inflation } = EXAMPLE;
+  const r = rate / 100 / 12;
+  const n = years * 12;
+  const monthlyPayment = (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  const result = calculateMortgage(principal, rate, years, extra, invRate, inflation, 0, 0, true, monthlyPayment);
+  const yearly = result.schedule.filter((m) => m.month % 12 === 0);
+  const payoffYear = Math.ceil(result.payoffMonths / 12);
+  return {
+    netWorthA: result.investmentComparison.netWorthA,
+    netWorthB: result.investmentComparison.netWorthB,
+    payoffYear,
+    series: [
+      { month: 0, a: -principal, b: -principal, balance: principal },
+      ...yearly.map((m) => ({ month: m.month, a: m.netWorthA, b: m.netWorthB, balance: m.remainingBalance })),
+    ],
   };
-  const [showInflationAdjusted, setShowInflationAdjusted] = useState(false);
+}
 
-  // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState({
-    month: true,
-    payment: true,
-    principal: true,
-    interest: true,
-    cumulativeInterest: true,
-    extra: true,
-    balance: true,
-    baselineBalance: true,
-    baselineInterest: true,
-    baselineCumulativeInterest: true,
-    invValue: true,
-    invGain: true,
-    interestSaved: true,
-    netWorthA: true,
-    netWorthB: true
-  });
+const usd = (v: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
 
-  const selectCountry = (code: string) => {
-    setCountry(code);
-    const match = COUNTRIES.find(c => c.code === code);
-    if (match) setCurrency(match.currency);
-    setRatesStatus({ state: 'idle' });
-  };
-
-  // rates.json is refreshed daily by the deploy workflow (scripts/fetch-rates.mjs)
-  const loadCurrentRates = async () => {
-    setRatesStatus({ state: 'loading' });
-    try {
-      const res = await fetch(`${BASE_PATH}/rates.json`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: RatesFile = await res.json();
-      const entry = data.countries?.[country];
-      const filled: { label: string; rate: RateValue }[] = [];
-      const missing: string[] = [];
-      if (entry?.mortgage) {
-        setRate(entry.mortgage.value);
-        filled.push({ label: 'Mortgage rate', rate: entry.mortgage });
-      } else {
-        missing.push('mortgage rate');
-      }
-      if (entry?.inflation) {
-        setInflationRate(entry.inflation.value);
-        filled.push({ label: 'Inflation', rate: entry.inflation });
-      } else {
-        missing.push('inflation');
-      }
-      setRatesStatus({ state: 'done', filled, missing });
-    } catch {
-      setRatesStatus({ state: 'error', message: 'Current rates are not available right now. Please try again later or enter the rates manually.' });
-    }
-  };
-
-  const toggleColumn = (column: keyof typeof visibleColumns) => {
-    setVisibleColumns(prev => ({ ...prev, [column]: !prev[column] }));
-  };
-
-  // Group inputs for debouncing
-  const calculationInputs = {
-    principal,
-    rate,
-    years,
-    extraPayment,
-    investmentRate,
-    inflationRate,
-    oneTimePaymentAmount,
-    oneTimePaymentMonth,
-    continueInvestingAfterPayoff,
-    postPayoffInvestmentAmount
-  };
-
-  const debouncedInputs = useDebounce(calculationInputs, 300);
-
-  // Calculate monthly payment for post-payoff investment (memoized)
-  const monthlyPayment = useMemo(() => {
-    const monthlyRate = debouncedInputs.rate / 100 / 12;
-    const totalMonths = debouncedInputs.years * 12;
-    return monthlyRate > 0
-      ? (debouncedInputs.principal * monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / (Math.pow(1 + monthlyRate, totalMonths) - 1)
-      : debouncedInputs.principal / totalMonths;
-  }, [debouncedInputs.rate, debouncedInputs.years, debouncedInputs.principal]);
-
-  const result = useMemo(() => calculateMortgage(
-    debouncedInputs.principal,
-    debouncedInputs.rate,
-    debouncedInputs.years,
-    debouncedInputs.extraPayment,
-    debouncedInputs.investmentRate,
-    debouncedInputs.inflationRate,
-    debouncedInputs.oneTimePaymentAmount,
-    debouncedInputs.oneTimePaymentMonth,
-    true,
-    debouncedInputs.continueInvestingAfterPayoff ? monthlyPayment : debouncedInputs.postPayoffInvestmentAmount
-  ), [debouncedInputs, monthlyPayment]);
-  const symbol = CURRENCIES[currency];
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(val);
-
-  // For the summary cards: a normal space after a currency code (e.g. "CZK 7,720,949")
-  // lets narrow phone cards wrap there instead of in the middle of the number
-  const formatSummary = (val: number) => formatCurrency(val).replace(/\u00a0/g, ' ');
-
-  // Column definitions with tooltips
-  const columnDefs = [
-    { key: 'month', label: 'Month', tooltip: 'Month number in the loan term' },
-    { key: 'payment', label: 'Payment', tooltip: 'Total monthly payment (principal + interest + extra)' },
-    { key: 'principal', label: 'Principal', tooltip: 'Amount going toward loan principal this month' },
-    { key: 'interest', label: 'Interest', tooltip: 'Amount going toward interest this month' },
-    { key: 'cumulativeInterest', label: 'Cumul. Interest', tooltip: 'Total interest paid so far (with extra payments)' },
-    { key: 'extra', label: 'Extra', tooltip: 'Extra payment applied to principal this month' },
-    { key: 'balance', label: 'Balance', tooltip: 'Remaining loan balance after this payment' },
-    { key: 'baselineBalance', label: 'Baseline Balance', tooltip: 'What the balance would be WITHOUT extra payments' },
-    { key: 'baselineInterest', label: 'Baseline Interest', tooltip: 'Monthly interest WITHOUT extra payments' },
-    { key: 'baselineCumulativeInterest', label: 'Baseline Cumul. Int.', tooltip: 'Cumulative interest WITHOUT extra payments' },
-    { key: 'invValue', label: 'Investment Value', tooltip: 'Investment value if extra payments were invested instead' },
-    { key: 'invGain', label: 'Investment Yield', tooltip: 'Cumulative yield from investment based on return rate' },
-    { key: 'interestSaved', label: 'Interest Saved', tooltip: 'Cumulative interest saved by making extra payments' },
-    { key: 'netWorthA', label: 'Net Worth A', tooltip: 'Net Worth for Scenario A (Pay Off Early & Invest)' },
-    { key: 'netWorthB', label: 'Net Worth B', tooltip: 'Net Worth for Scenario B (Invest the Difference)' }
-  ];
+function ExampleChart({ series }: { series: ReturnType<typeof buildExample>['series'] }) {
+  const W = 480;
+  const H = 220;
+  const pad = { l: 8, r: 8, t: 12, b: 12 };
+  const values = series.flatMap((p) => [p.a, p.b, p.balance]);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const maxMonth = series[series.length - 1].month;
+  const x = (m: number) => pad.l + (m / maxMonth) * (W - pad.l - pad.r);
+  const y = (v: number) => pad.t + ((max - v) / (max - min)) * (H - pad.t - pad.b);
+  const line = (key: 'a' | 'b' | 'balance') =>
+    series.map((p, i) => `${i ? 'L' : 'M'}${x(p.month).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+  const zeroY = y(0);
 
   return (
-    <div className="container">
-      <div className="page-header">
-        <div>
-          <h1>TrueCalc  </h1>
-          <p style={{ color: '#666' }}>Compare extra mortgage down payment vs. investing your money. No opinios, make your decission based on Math.</p>
-          <div style={{ fontSize: '11px', color: '#999', marginTop: '8px', lineHeight: '1.4' }}>
-            * Notice a simple matematical dependecy on the overall net worth.<br />
-            * Reliefs from Interest and Taxes are not considered
+    <svg viewBox={`0 0 ${W} ${H}`} className={styles.chart} role="img" aria-label="Net worth of both scenarios over 30 years">
+      <defs>
+        <linearGradient id="fillB" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#34d399" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0.25, 0.5, 0.75].map((f) => (
+        <line key={f} x1={pad.l} x2={W - pad.r} y1={pad.t + f * (H - pad.t - pad.b)} y2={pad.t + f * (H - pad.t - pad.b)} className={styles.gridLine} />
+      ))}
+      <line x1={pad.l} x2={W - pad.r} y1={zeroY} y2={zeroY} className={styles.zeroLine} />
+      <path d={`${line('b')} L${x(maxMonth)},${H - pad.b} L${x(0)},${H - pad.b} Z`} fill="url(#fillB)" />
+      <path d={line('balance')} className={styles.lineBalance} />
+      <path d={line('a')} className={styles.lineA} />
+      <path d={line('b')} className={styles.lineB} />
+    </svg>
+  );
+}
+
+const FEATURES = [
+  {
+    title: 'Two strategies, side by side',
+    text: 'Scenario A pays extra on the mortgage, then invests once it is paid off. Scenario B invests the extra from day one. You see the net worth of both.',
+  },
+  {
+    title: 'Current rates for 18 countries',
+    text: 'One click fills in the latest published mortgage rate and inflation from central banks and statistics offices, refreshed daily.',
+  },
+  {
+    title: 'Inflation-adjusted view',
+    text: 'Switch every result to today’s money, so a number 30 years out means something you can compare.',
+  },
+  {
+    title: 'Every month, every number',
+    text: 'A full amortization schedule: principal, interest, balance, investment value and net worth for each month of the loan.',
+  },
+  {
+    title: 'One-time payments',
+    text: 'Model a lump sum, such as a bonus or an inheritance, paid into the mortgage in any month you choose.',
+  },
+  {
+    title: 'Private by design',
+    text: 'No sign-up and no tracking of your figures. The calculation runs entirely in your browser.',
+  },
+];
+
+const STEPS = [
+  { n: '01', title: 'Enter your loan', text: 'Loan amount, interest rate and term, or use the current rates for your country.' },
+  { n: '02', title: 'Set your strategy', text: 'How much extra you can put aside each month, and what return you expect from investing.' },
+  { n: '03', title: 'Compare net worth', text: 'TrueCalc runs both scenarios month by month and highlights the one that ends up ahead.' },
+];
+
+export default function Landing() {
+  const ex = buildExample();
+  const diff = ex.netWorthB - ex.netWorthA;
+  const winner = diff >= 0 ? 'B' : 'A';
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.nav}>
+        <Link href="/" className={styles.brand}>
+          <span className={styles.brandMark} aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 17l5-5 4 3 8-9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+          TrueCalc
+        </Link>
+        <nav className={styles.navLinks}>
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <Link href="/calculator" className={styles.navCta}>Open calculator</Link>
+        </nav>
+      </header>
+
+      <main>
+        <section className={styles.hero}>
+          <div className={styles.heroText}>
+            <p className={styles.eyebrow}>Mortgage · Invest · Compare</p>
+            <h1 className={styles.title}>
+              Pay off the mortgage early, <span className={styles.accent}>or invest the difference?</span>
+            </h1>
+            <p className={styles.lead}>
+              TrueCalc runs both strategies month by month and shows which one leaves you with more net worth.
+              No opinions. Make your decision based on math.
+            </p>
+            <div className={styles.ctaRow}>
+              <Link href="/calculator" className={styles.btnPrimary}>Open the calculator <span aria-hidden="true">→</span></Link>
+              <a href="#how" className={styles.btnGhost}>See how it works</a>
+            </div>
+            <ul className={styles.heroFacts}>
+              <li><strong>18</strong> countries with current rates</li>
+              <li><strong>360</strong> months modelled</li>
+              <li><strong>0</strong> sign-ups</li>
+            </ul>
           </div>
-        </div>
-        <div className="header-selects">
-          <select aria-label="Country" value={country} onChange={(e) => selectCountry(e.target.value)} style={{ width: 'auto' }}>
-            {COUNTRIES.map(c => (
-              <option key={c.code} value={c.code}>{c.name}</option>
+
+          <div className={styles.panel}>
+            <div className={styles.panelHead}>
+              <span className={styles.dots} aria-hidden="true"><i /><i /><i /></span>
+              <span className={styles.mono}>example.calc</span>
+            </div>
+            <p className={`${styles.mono} ${styles.params}`}>
+              {usd(EXAMPLE.principal)} loan · {EXAMPLE.rate}% · {EXAMPLE.years} yrs · {usd(EXAMPLE.extra)}/mo extra · {EXAMPLE.invRate}% return
+            </p>
+            <ExampleChart series={ex.series} />
+            <div className={styles.legend}>
+              <span><i className={styles.swA} /> Net worth A: pay off early</span>
+              <span><i className={styles.swB} /> Net worth B: invest</span>
+              <span><i className={styles.swBal} /> Mortgage balance</span>
+            </div>
+            <div className={styles.results}>
+              <div className={winner === 'A' ? styles.win : ''}>
+                <span className={styles.resLabel}>Scenario A</span>
+                <span className={styles.resValue}>{usd(ex.netWorthA)}</span>
+              </div>
+              <div className={winner === 'B' ? styles.win : ''}>
+                <span className={styles.resLabel}>Scenario B</span>
+                <span className={styles.resValue}>{usd(ex.netWorthB)}</span>
+              </div>
+              <div>
+                <span className={styles.resLabel}>Difference</span>
+                <span className={`${styles.resValue} ${styles.up}`}>+{usd(Math.abs(diff))}</span>
+              </div>
+            </div>
+            <p className={styles.panelNote}>
+              In this example the mortgage in scenario A is paid off in year {ex.payoffYear}, and scenario {winner} ends{' '}
+              {usd(Math.abs(diff))} ahead after {EXAMPLE.years} years.
+            </p>
+          </div>
+        </section>
+
+        <RatesTicker />
+
+        <section id="features" className={styles.section}>
+          <p className={styles.eyebrow}>Features</p>
+          <h2 className={styles.h2}>Everything you need to compare the two, nothing you don’t</h2>
+          <div className={styles.features}>
+            {FEATURES.map((f) => (
+              <article key={f.title} className={styles.feature}>
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+              </article>
             ))}
-          </select>
-          <select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value as CurrencyCode)} style={{ width: 'auto' }}>
-            {Object.keys(CURRENCIES).map(code => (
-              <option key={code} value={code}>{CURRENCIES[code as CurrencyCode]} {code}</option>
+          </div>
+        </section>
+
+        <section id="how" className={styles.section}>
+          <p className={styles.eyebrow}>How it works</p>
+          <h2 className={styles.h2}>Three steps to an answer</h2>
+          <ol className={styles.steps}>
+            {STEPS.map((s) => (
+              <li key={s.n} className={styles.step}>
+                <span className={styles.stepNum}>{s.n}</span>
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
             ))}
-          </select>
-        </div>
-      </div>
+          </ol>
+        </section>
 
+        <section className={styles.finalCta}>
+          <h2 className={styles.h2}>Run your own numbers</h2>
+          <p>It takes a minute and it’s free.</p>
+          <Link href="/calculator" className={styles.btnPrimary}>Open the calculator <span aria-hidden="true">→</span></Link>
+        </section>
+      </main>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'stretch' }}>
-        {/* Inputs */}
-        <div className="card" style={{ marginBottom: 0, padding: '20px' }}>
-          {/* Current rates */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #e5e7eb' }}>
-            <button
-              type="button"
-              onClick={loadCurrentRates}
-              disabled={ratesStatus.state === 'loading'}
-              style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', backgroundColor: '#4f46e5', border: 'none', borderRadius: '6px', cursor: ratesStatus.state === 'loading' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: ratesStatus.state === 'loading' ? 0.7 : 1 }}
-            >
-              {ratesStatus.state === 'loading' ? 'Loading…' : `Use current rates for ${COUNTRIES.find(c => c.code === country)?.name}`}
-            </button>
-            <div style={{ fontSize: '12px', color: '#666', lineHeight: 1.5, alignSelf: 'center' }}>
-              {ratesStatus.state === 'idle' && 'Fills in the latest published mortgage rate and inflation for the selected country.'}
-              {ratesStatus.state === 'error' && <span style={{ color: '#dc2626' }}>{ratesStatus.message}</span>}
-              {ratesStatus.state === 'done' && (
-                <>
-                  {ratesStatus.filled.map(({ label, rate }) => (
-                    <div key={label}>
-                      <strong>{label}: {rate.value}%</strong> ({formatPeriod(rate.period)}) –{' '}
-                      <a href={rate.url} target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5' }}>{rate.source}</a>
-                    </div>
-                  ))}
-                  {ratesStatus.missing.length > 0 && (
-                    <div style={{ color: '#b45309' }}>
-                      No current {ratesStatus.missing.join(' or ')} available for this country – please enter it manually.
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="inputs-grid">
-            {/* Loan Details */}
-            <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Loan Details</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Loan Amount</label>
-                  <input type="number" value={principal} onChange={(e) => setPrincipal(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Interest Rate (%)</label>
-                  <input type="number" step="0.1" value={rate} onChange={(e) => setRate(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Term (Years)</label>
-                  <input type="number" min="1" value={years} onChange={(e) => setYears(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Extra Payment Strategy */}
-            <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Extra Payment Strategy</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Monthly Extra</label>
-                  <input type="number" value={extraPayment} onChange={(e) => setExtraPayment(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Inv. Return (%)</label>
-                  <input type="number" step="0.1" value={investmentRate} onChange={(e) => setInvestmentRate(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Inflation (%)</label>
-                  <input type="number" step="0.1" value={inflationRate} onChange={(e) => setInflationRate(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-              </div>
-            </div>
-
-            {/* One-Time Extra Payment */}
-            <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>One-Time Extra Payment</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Payment Amount</label>
-                  <input type="number" value={oneTimePaymentAmount} onChange={(e) => setOneTimePaymentAmount(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Payment Month</label>
-                  <input type="number" min="0" max={years * 12} value={oneTimePaymentMonth} onChange={(e) => setOneTimePaymentMonth(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Post-Payoff Strategy */}
-            <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Post-Payoff Strategy</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                  <input
-                    type="checkbox"
-                    checked={continueInvestingAfterPayoff}
-                    onChange={(e) => setContinueInvestingAfterPayoff(e.target.checked)}
-                    style={{ width: 'auto', marginRight: '10px' }}
-                  />
-                  <label style={{ marginBottom: 0, fontSize: '14px' }}>Invest mortgage payment after payoff</label>
-                </div>
-                {!continueInvestingAfterPayoff && (
-                  <div>
-                    <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Custom Monthly Investment Amount</label>
-                    <input
-                      type="number"
-                      value={postPayoffInvestmentAmount}
-                      onChange={(e) => setPostPayoffInvestmentAmount(Number(e.target.value))}
-                      onFocus={(e) => e.target.select()}
-                      style={{ padding: '8px', width: '100%' }}
-                    />
-                  </div>
-                )}
-                {continueInvestingAfterPayoff && (
-                  <div style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
-                    Will invest {formatCurrency(monthlyPayment)}/mo + extra payments
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Results */}
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* Checkbox for inflation adjusted values */}
-          <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={showInflationAdjusted}
-                onChange={(e) => setShowInflationAdjusted(e.target.checked)}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              Show Inflation adjusted values
-            </label>
-          </div>
-
-          {/* Summary Cards */}
-          <div className="scenarios-grid">
-            {(() => {
-              const investmentYield = showInflationAdjusted
-                ? result.investmentComparison.investmentYieldReal
-                : (result.schedule[result.schedule.length - 1]?.investmentGain || 0);
-
-              const interestSaved = result.investmentComparison.interestSaved; // Interest saved is difference in nominal
-
-              const paydownSavingsGrowth = showInflationAdjusted
-                ? result.investmentComparison.paydownSavingsGrowthReal
-                : result.investmentComparison.paydownSavingsGrowth;
-
-              const netWorthA = showInflationAdjusted
-                ? result.investmentComparison.netWorthAReal
-                : result.investmentComparison.netWorthA;
-
-              const netWorthB = showInflationAdjusted
-                ? result.investmentComparison.netWorthBReal
-                : result.investmentComparison.netWorthB;
-
-              const cumulativeInterestA = showInflationAdjusted
-                ? result.investmentComparison.totalInterestReal
-                : result.totalInterest;
-
-              const cumulativeInterestB = showInflationAdjusted
-                ? result.investmentComparison.baselineCumulativeInterestReal
-                : (result.schedule[result.schedule.length - 1]?.baselineCumulativeInterest || 0);
-
-              const strategyAIsBetter = netWorthA > netWorthB;
-
-              return (
-                <>
-                  {/* Scenario A: Pay Off Early & Invest */}
-                  <div className="scenario-col">
-                    <h3 className="scenario-title" style={{ color: '#4f46e5' }}>Scenario A: Pay Off Early & Invest</h3>
-                    <div className="card net-card" style={{ background: strategyAIsBetter ? '#dcfce7' : '#fff', border: strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
-                      <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div className="net-value" style={{ color: strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthA)}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
-                    </div>
-                    <div className="stat-grid">
-                      <div className="card stat-card">
-                        <h3>Cumulative Interest</h3>
-                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestA)}</div>
-                      </div>
-                      <div className="card stat-card">
-                        <h3>Inv. Yield</h3>
-                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(paydownSavingsGrowth)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Scenario B: Invest the Difference */}
-                  <div className="scenario-col">
-                    <h3 className="scenario-title" style={{ color: '#059669' }}>Scenario B: Invest the Difference</h3>
-                    <div className="card net-card" style={{ background: !strategyAIsBetter ? '#dcfce7' : '#fff', border: !strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
-                      <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div className="net-value" style={{ color: !strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthB)}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
-                    </div>
-                    <div className="stat-grid">
-                      <div className="card stat-card">
-                        <h3>Cumulative Interest</h3>
-                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestB)}</div>
-                      </div>
-                      <div className="card stat-card">
-                        <h3>Inv. Yield</h3>
-                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(investmentYield)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Chart */}
-          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: 0 }}>
-            <h3>Financial Projection</h3>
-            <div style={{ flex: 1, minHeight: '300px', minWidth: 0, position: 'relative' }}>
-              <Line
-                data={{
-                  labels: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => `Y${Math.floor(d.month / 12)}`),
-                  datasets: [
-                    {
-                      label: 'Mortgage Balance A',
-                      data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.remainingBalance),
-                      borderColor: '#ef4444',
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 0,
-                      borderWidth: 2,
-                      yAxisID: 'y',
-                    },
-                    {
-                      label: 'Mortgage Balance B',
-                      data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.baselineBalance),
-                      borderColor: '#f87171',
-                      backgroundColor: 'rgba(248, 113, 113, 0.1)',
-                      borderDash: [5, 5],
-                      fill: false,
-                      tension: 0.4,
-                      pointRadius: 0,
-                      borderWidth: 2,
-                      yAxisID: 'y',
-                    },
-                    {
-                      label: 'Net Worth A',
-                      data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.netWorthA),
-                      borderColor: '#10b981',
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                      fill: false,
-                      tension: 0.4,
-                      pointRadius: 0,
-                      borderWidth: 2,
-                      yAxisID: 'y',
-                    },
-                    {
-                      label: 'Net Worth B',
-                      data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.netWorthB),
-                      borderColor: '#4f46e5',
-                      backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                      fill: false,
-                      tension: 0.4,
-                      pointRadius: 0,
-                      borderWidth: 2,
-                      yAxisID: 'y',
-                    }
-                  ]
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'top' as const,
-                      labels: {
-                        color: '#666',
-                        font: { size: 12 },
-                        usePointStyle: true,
-                        padding: 30,
-                        boxWidth: 15,
-                      }
-                    },
-                    tooltip: {
-                      mode: 'index' as const,
-                      intersect: false,
-                      backgroundColor: '#fff',
-                      titleColor: '#333',
-                      bodyColor: '#666',
-                      borderColor: '#ddd',
-                      borderWidth: 1,
-                      callbacks: {
-                        label: function (context: { dataset: { label?: string }, parsed: { y: number | null } }) {
-                          let label = context.dataset.label || '';
-                          if (label) { label += ': '; }
-                          if (context.parsed.y !== null) {
-                            label += formatCurrency(context.parsed.y);
-                          }
-                          return label;
-                        }
-                      }
-                    },
-                  },
-                  scales: {
-                    x: {
-                      grid: { display: false },
-                      ticks: { color: '#999', font: { size: 11 } }
-                    },
-                    y: {
-                      type: 'linear' as const,
-                      display: true,
-                      position: 'left' as const,
-                      grid: { color: '#f0f0f0' },
-                      ticks: {
-                        color: '#999',
-                        font: { size: 11 },
-                        callback: function (value: string | number) {
-                          const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                          return symbol + (numValue / 1000).toFixed(0) + 'k';
-                        }
-                      }
-                    },
-                    y1: {
-                      display: false
-                    }
-                  },
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Table - Full Width */}
-        <div className="card" style={{ marginTop: '20px' }}>
-          <div className="table-toolbar">
-            <h3 style={{ margin: 0 }}>Amortization Schedule ({result.schedule.length} months)</h3>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => setVisibleColumns({
-                  month: true,
-                  payment: true,
-                  principal: true,
-                  interest: true,
-                  cumulativeInterest: true,
-                  extra: true,
-                  balance: true,
-                  baselineBalance: true,
-                  baselineInterest: true,
-                  baselineCumulativeInterest: true,
-                  invValue: true,
-                  invGain: true,
-                  interestSaved: true,
-                  netWorthA: true,
-                  netWorthB: true
-                })}
-                style={{
-                  padding: '6px 12px',
-                  background: '#4f46e5',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '500'
-                }}
-              >
-                Show All Columns
-              </button>
-              <button
-                onClick={() => setVisibleColumns({
-                  month: true,
-                  payment: true,
-                  principal: true,
-                  interest: true,
-                  cumulativeInterest: true,
-                  extra: true,
-                  balance: true,
-                  baselineBalance: false,
-                  baselineInterest: false,
-                  baselineCumulativeInterest: false,
-                  invValue: true,
-                  invGain: false,
-                  interestSaved: true,
-                  netWorthA: true,
-                  netWorthB: true
-                })}
-                style={{
-                  padding: '6px 12px',
-                  background: '#6b7280',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '500'
-                }}
-              >
-                Simple View
-              </button>
-            </div>
-          </div>
-          <div style={{ marginBottom: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '4px', fontSize: '12px' }}>
-            <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over or tap ⓘ for explanations.
-            {Object.values(visibleColumns).filter(v => !v).length > 0 && (
-              <span style={{ marginLeft: '10px', color: '#f59e0b', fontWeight: '600' }}>
-                ({Object.values(visibleColumns).filter(v => !v).length} column{Object.values(visibleColumns).filter(v => !v).length !== 1 ? 's' : ''} hidden)
-              </span>
-            )}
-          </div>
-          <div style={{ maxHeight: '400px', overflow: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  {columnDefs.map(col => visibleColumns[col.key as keyof typeof visibleColumns] && (
-                    <th key={col.key} style={{
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 10,
-                      background: '#fff',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                      padding: '4px 8px', // Reduced padding
-                      fontSize: '11px', // Slightly smaller font
-                      verticalAlign: 'top'
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns[col.key as keyof typeof visibleColumns]}
-                            onChange={(e) => {
-                              e.stopPropagation(); // Prevent header click when checking box
-                              toggleColumn(col.key as keyof typeof visibleColumns);
-                            }}
-                            style={{ cursor: 'pointer', margin: 0 }}
-                          />
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`About ${col.label}`}
-                            aria-expanded={openTooltip?.key === col.key}
-                            title={col.tooltip}
-                            onClick={(e) => toggleTooltip(e, col.key, col.tooltip)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.currentTarget.click();
-                              }
-                            }}
-                            style={{
-                              display: 'inline-block',
-                              width: '12px',
-                              height: '12px',
-                              borderRadius: '50%',
-                              background: '#e5e7eb',
-                              color: '#666',
-                              fontSize: '9px',
-                              lineHeight: '12px',
-                              textAlign: 'center',
-                              cursor: 'help'
-                            }}
-                          >
-                            ⓘ
-                          </span>
-                        </div>
-                        <span style={{ textAlign: 'center', lineHeight: '1.2' }}>{col.label}</span>
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {result.schedule.map((row) => (
-                  <tr key={row.month}>
-                    {visibleColumns.month && <td style={{ textAlign: 'center' }}>{row.month}</td>}
-                    {visibleColumns.payment && <td style={{ textAlign: 'center' }}>{formatCurrency(row.payment)}</td>}
-                    {visibleColumns.principal && <td style={{ color: '#059669', textAlign: 'center' }}>{formatCurrency(row.principal)}</td>}
-                    {visibleColumns.interest && <td style={{ color: '#dc2626', textAlign: 'center' }}>{formatCurrency(row.interest)}</td>}
-                    {visibleColumns.cumulativeInterest && <td style={{ color: '#dc2626', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.totalInterestPaid)}</td>}
-                    {visibleColumns.extra && (
-                      <td style={{ color: row.extraPayment > 0 ? '#10b981' : '#999', textAlign: 'center' }}>
-                        {row.extraPayment > 0 ? `+${formatCurrency(row.extraPayment)}` : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.balance && <td style={{ textAlign: 'center' }}>{formatCurrency(row.remainingBalance)}</td>}
-                    {visibleColumns.baselineBalance && <td style={{ color: '#6b7280', textAlign: 'center' }}>{formatCurrency(row.baselineBalance)}</td>}
-                    {visibleColumns.baselineInterest && <td style={{ color: '#dc2626', opacity: 0.6, textAlign: 'center' }}>{formatCurrency(row.baselineInterest)}</td>}
-                    {visibleColumns.baselineCumulativeInterest && <td style={{ color: '#dc2626', opacity: 0.6, textAlign: 'center' }}>{formatCurrency(row.baselineCumulativeInterest)}</td>}
-                    {visibleColumns.invValue && <td style={{ color: '#4f46e5', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.investmentValue)}</td>}
-                    {visibleColumns.invGain && <td style={{ color: '#10b981', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.investmentGain)}</td>}
-                    {visibleColumns.interestSaved && <td style={{ color: '#f59e0b', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.cumulativeInterestSaved)}</td>}
-                    {visibleColumns.netWorthA && <td style={{ color: '#059669', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.netWorthA)}</td>}
-                    {visibleColumns.netWorthB && <td style={{ color: '#4f46e5', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.netWorthB)}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {openTooltip && (
-        <div
-          role="tooltip"
-          style={{
-            position: 'fixed',
-            top: openTooltip.top,
-            left: openTooltip.left,
-            transform: openTooltip.above ? 'translateY(-100%)' : undefined,
-            width: '220px',
-            zIndex: 1000,
-            padding: '8px 10px',
-            background: '#1f2937',
-            color: '#fff',
-            fontSize: '12px',
-            lineHeight: 1.4,
-            borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-          }}
-        >
-          {openTooltip.text}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div style={{
-        marginTop: '40px',
-        paddingTop: '20px',
-        borderTop: '1px solid #e5e7eb',
-        textAlign: 'center',
-        fontSize: '12px',
-        color: '#666'
-      }}>
-        <Image
-          src={`${BASE_PATH}/blacktree-logo.png`}
-          alt="Blacktree Studio"
-          width={180}
-          height={60}
-          style={{
-            width: '180px',
-            height: 'auto',
-            marginBottom: '12px',
-            opacity: 0.8
-          }}
-        />
-        <p style={{ margin: '0 0 8px 0' }}>Created by Blacktree Studio - All rights reserved</p>
-        <p style={{ margin: 0 }}>
-          Mailto: <a href="mailto:plasticxpower@gmail.com" style={{ color: '#4f46e5', textDecoration: 'none' }}>plasticxpower@gmail.com</a> - Your feedback is appreciated
+      <footer className={styles.footer}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`${BASE_PATH}/blacktree-logo.png`} alt="Blacktree Studio" className={styles.footerLogo} />
+        <p>Created by Blacktree Studio. All rights reserved.</p>
+        <p>
+          Feedback: <a href="mailto:plasticxpower@gmail.com">plasticxpower@gmail.com</a>
         </p>
-      </div>
+        <p className={styles.disclaimer}>
+          TrueCalc is a calculator, not financial advice. Tax effects and interest reliefs are not included.
+        </p>
+      </footer>
     </div>
   );
 }
