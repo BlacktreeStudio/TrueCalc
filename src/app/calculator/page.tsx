@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
+import NumberField from '@/components/NumberField';
 import { useResolvedTheme } from '@/hooks/useTheme';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateMortgage } from '@/utils/calculations';
@@ -332,15 +333,15 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Loan Amount</label>
-                  <input type="number" value={principal} onChange={(e) => setPrincipal(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField value={principal} onValueChange={setPrincipal} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Interest Rate (%)</label>
-                  <input type="number" step="0.1" value={rate} onChange={(e) => setRate(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField step="0.1" value={rate} onValueChange={setRate} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Term (Years)</label>
-                  <input type="number" min="1" value={years} onChange={(e) => setYears(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField min="1" value={years} onValueChange={setYears} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
               </div>
             </div>
@@ -351,15 +352,15 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Monthly Extra</label>
-                  <input type="number" value={extraPayment} onChange={(e) => setExtraPayment(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField value={extraPayment} onValueChange={setExtraPayment} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Inv. Return (%)</label>
-                  <input type="number" step="0.1" value={investmentRate} onChange={(e) => setInvestmentRate(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField step="0.1" value={investmentRate} onValueChange={setInvestmentRate} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Inflation (%)</label>
-                  <input type="number" step="0.1" value={inflationRate} onChange={(e) => setInflationRate(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField step="0.1" value={inflationRate} onValueChange={setInflationRate} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
               </div>
             </div>
@@ -370,11 +371,11 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Payment Amount</label>
-                  <input type="number" value={oneTimePaymentAmount} onChange={(e) => setOneTimePaymentAmount(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField value={oneTimePaymentAmount} onValueChange={setOneTimePaymentAmount} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Payment Month</label>
-                  <input type="number" min="0" max={years * 12} value={oneTimePaymentMonth} onChange={(e) => setOneTimePaymentMonth(Number(e.target.value))} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
+                  <NumberField min="0" max={years * 12} value={oneTimePaymentMonth} onValueChange={setOneTimePaymentMonth} onFocus={(e) => e.target.select()} style={{ padding: '8px', width: '100%' }} />
                 </div>
               </div>
             </div>
@@ -395,10 +396,9 @@ export default function Home() {
                 {!continueInvestingAfterPayoff && (
                   <div>
                     <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Custom Monthly Investment Amount</label>
-                    <input
-                      type="number"
+                    <NumberField
                       value={postPayoffInvestmentAmount}
-                      onChange={(e) => setPostPayoffInvestmentAmount(Number(e.target.value))}
+                      onValueChange={setPostPayoffInvestmentAmount}
                       onFocus={(e) => e.target.select()}
                       style={{ padding: '8px', width: '100%' }}
                     />
