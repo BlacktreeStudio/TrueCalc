@@ -1,22 +1,12 @@
 .page {
-  --bg: #060a13;
-  --panel: #0c1322;
-  --panel-2: #101a2e;
-  --line: rgba(148, 163, 184, 0.14);
-  --text: #e7edf7;
-  --muted: #8d9bb3;
-  --green: #34d399;
-  --green-strong: #10b981;
-  --indigo: #818cf8;
-  --red: #f87171;
-
+  /* Colours come from the theme variables in globals.css */
   min-height: 100vh;
   color: var(--text);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   background:
-    radial-gradient(900px 500px at 85% -10%, rgba(16, 185, 129, 0.16), transparent 60%),
-    radial-gradient(700px 450px at 0% 10%, rgba(99, 102, 241, 0.14), transparent 60%),
+    radial-gradient(900px 500px at 85% -10%, var(--glow-green), transparent 60%),
+    radial-gradient(700px 450px at 0% 10%, var(--glow-indigo), transparent 60%),
     linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
     linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
     var(--bg);
@@ -77,15 +67,20 @@
 }
 
 .navCta {
+  white-space: nowrap;
   padding: 8px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text) !important;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint);
 }
 
 .navCta:hover {
   border-color: var(--green);
+}
+
+.ctaShort {
+  display: none;
 }
 
 /* ---------- Hero ---------- */
@@ -163,7 +158,7 @@
 
 .btnGhost {
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint);
 }
 
 .btnGhost:hover {
@@ -193,7 +188,7 @@
   border: 1px solid var(--line);
   border-radius: 16px;
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-lg);
   padding: 18px 20px 20px;
   min-width: 0;
 }
@@ -218,7 +213,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #334155;
+  background: var(--line-strong);
 }
 
 .dots i:first-child {
@@ -251,7 +246,7 @@
 }
 
 .zeroLine {
-  stroke: rgba(148, 163, 184, 0.35);
+  stroke: var(--zero-line);
   stroke-width: 1;
   stroke-dasharray: 4 4;
 }
@@ -320,7 +315,7 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--tint);
   min-width: 0;
 }
 
@@ -362,7 +357,7 @@
   align-items: center;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  background: rgba(6, 10, 19, 0.75);
+  background: var(--overlay);
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 13px;
 }
@@ -487,7 +482,8 @@
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 22px;
-  background: rgba(12, 19, 34, 0.7);
+  background: var(--panel);
+  box-shadow: var(--shadow);
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
@@ -549,7 +545,7 @@
   border: 1px solid var(--line);
   border-radius: 20px;
   background:
-    radial-gradient(600px 240px at 50% 0%, rgba(52, 211, 153, 0.14), transparent 70%),
+    radial-gradient(600px 240px at 50% 0%, var(--glow-green), transparent 70%),
     var(--panel);
 }
 
@@ -582,10 +578,8 @@
   height: auto;
   margin-bottom: 12px;
   opacity: 0.85;
-  /* The logo is dark on an off-white background: invert it and let the
-     (now dark) background disappear into the page */
-  filter: invert(1) hue-rotate(180deg) contrast(1.4);
-  mix-blend-mode: screen;
+  filter: var(--logo-filter);
+  mix-blend-mode: var(--logo-blend);
 }
 
 .disclaimer {
@@ -613,8 +607,24 @@
     padding: 16px;
   }
 
+  .navLinks {
+    gap: 10px;
+  }
+
   .navLinks a:not(.navCta) {
     display: none;
+  }
+
+  .ctaLong {
+    display: none;
+  }
+
+  .ctaShort {
+    display: inline;
+  }
+
+  .navCta {
+    padding: 7px 12px;
   }
 
   .hero,
@@ -664,5 +674,12 @@
 
   .tickerLabel {
     padding: 12px;
+  }
+}
+
+/* Very small phones: logo mark only, so the theme switch and button fit */
+@media (max-width: 400px) {
+  .brandName {
+    display: none;
   }
 }

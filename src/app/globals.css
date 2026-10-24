@@ -4,11 +4,76 @@
   box-sizing: border-box;
 }
 
+/* Theme palette, shared by the landing page and the calculator.
+   The theme is set as data-theme="dark" | "light" on <html> by the script in
+   layout.tsx (saved choice, or the system setting for "Auto"). Dark is the default. */
+:root {
+  color-scheme: dark;
+  --bg: #060a13;
+  --panel: #0c1322;
+  --panel-2: #101a2e;
+  --field: #0a1120;
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.28);
+  --text: #e7edf7;
+  --muted: #8d9bb3;
+  --dim: #64748b;
+  --green: #34d399;
+  --indigo: #818cf8;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --tint: rgba(255, 255, 255, 0.03);
+  --glow-green: rgba(16, 185, 129, 0.14);
+  --glow-indigo: rgba(99, 102, 241, 0.13);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.45);
+  --overlay: rgba(6, 10, 19, 0.75);
+  --zero-line: rgba(148, 163, 184, 0.35);
+  /* The logo is dark on an off-white background: in dark mode invert it and
+     let its (then black) background blend into the page */
+  --logo-filter: invert(1) hue-rotate(180deg) contrast(1.4);
+  --logo-blend: screen;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --panel-2: #fbfcfe;
+  --field: #ffffff;
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.16);
+  --text: #0f172a;
+  --muted: #526078;
+  --dim: #8592a6;
+  --green: #059669;
+  --indigo: #4f46e5;
+  --red: #dc2626;
+  --amber: #b45309;
+  --tint: rgba(15, 23, 42, 0.03);
+  --glow-green: rgba(16, 185, 129, 0.10);
+  --glow-indigo: rgba(99, 102, 241, 0.08);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --overlay: rgba(255, 255, 255, 0.85);
+  --zero-line: rgba(71, 85, 105, 0.35);
+  /* Light mode: brighten the off-white background to pure white, which the
+     multiply blend then makes disappear into the page */
+  --logo-filter: brightness(1.12) contrast(1.15);
+  --logo-blend: multiply;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f5f5f5;
-  color: #333;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text);
   line-height: 1.6;
+  background:
+    radial-gradient(900px 500px at 85% -10%, var(--glow-green), transparent 60%),
+    radial-gradient(700px 450px at 0% 10%, var(--glow-indigo), transparent 60%),
+    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
+    var(--bg);
+  min-height: 100vh;
 }
 
 .container {
@@ -18,26 +83,39 @@ body {
 }
 
 .card {
-  background: white;
-  border-radius: 8px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
 }
 
 input[type="number"],
 select {
   width: 100%;
   padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 14px;
+}
+
+select {
+  font-family: inherit;
 }
 
 input[type="number"]:focus,
 select:focus {
   outline: none;
-  border-color: #4f46e5;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--green);
 }
 
 label {
@@ -45,18 +123,19 @@ label {
   margin-bottom: 5px;
   font-size: 13px;
   font-weight: 500;
-  color: #666;
+  color: var(--muted);
 }
 
 h1 {
   font-size: 28px;
   margin-bottom: 10px;
+  letter-spacing: -0.02em;
 }
 
 h2 {
   font-size: 16px;
   margin-bottom: 15px;
-  color: #666;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -64,7 +143,17 @@ h2 {
 h3 {
   font-size: 14px;
   margin-bottom: 10px;
-  color: #666;
+  color: var(--muted);
+}
+
+/* Section labels in the calculator's input card, styled like the landing page eyebrows */
+.section-label {
+  margin: 0 0 15px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--green);
 }
 
 /* Table Styles */
@@ -72,21 +161,27 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 th,
 td {
   padding: 6px 8px;
   /* Tighter padding */
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Keep amounts like "-€299,368" on one line; the table scrolls sideways instead */
+td {
+  white-space: nowrap;
 }
 
 th {
-  background: #f9f9f9;
+  background: var(--panel-2);
   text-align: left;
   font-weight: 600;
-  color: #666;
-  border-bottom: 2px solid #eee;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 th:first-child,
@@ -95,10 +190,57 @@ td:first-child {
 }
 
 tr:hover {
-  background: #fafafa;
+  background: var(--tint);
 }
+
+/* Logo (dark artwork on an off-white background), adapted per theme */
+.brand-logo {
+  filter: var(--logo-filter);
+  mix-blend-mode: var(--logo-blend);
+}
+
+/* Light / Dark / Auto switch (components/ThemeToggle.tsx) */
+.theme-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--tint);
+}
+
+.theme-toggle button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.theme-toggle button:hover {
+  color: var(--text);
+}
+
+.theme-toggle button[aria-checked="true"] {
+  background: var(--panel-2);
+  color: var(--green);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.theme-toggle button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+}
+
 /* Layout */
 .page-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -206,6 +348,13 @@ tr:hover {
   .header-selects select {
     flex: 1;
     min-width: 0;
+  }
+
+  /* Theme switch moves up next to the title, giving the selects the full row */
+  .header-selects .theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
   }
 
   .inputs-grid {

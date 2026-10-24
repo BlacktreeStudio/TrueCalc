@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { calculateMortgage } from '@/utils/calculations';
 import RatesTicker from '@/components/RatesTicker';
+import ThemeToggle from '@/components/ThemeToggle';
 import styles from './landing.module.css';
 
 export const metadata: Metadata = {
@@ -112,16 +113,20 @@ export default function Landing() {
   return (
     <div className={styles.page}>
       <header className={styles.nav}>
-        <Link href="/" className={styles.brand}>
+        <Link href="/" className={styles.brand} aria-label="TrueCalc home">
           <span className={styles.brandMark} aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 17l5-5 4 3 8-9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </span>
-          TrueCalc
+          <span className={styles.brandName}>TrueCalc</span>
         </Link>
         <nav className={styles.navLinks}>
           <a href="#features">Features</a>
           <a href="#how">How it works</a>
-          <Link href="/calculator" className={styles.navCta}>Open calculator</Link>
+          <ThemeToggle />
+          <Link href="/calculator" className={styles.navCta}>
+            <span className={styles.ctaLong}>Open calculator</span>
+            <span className={styles.ctaShort}>Calculator</span>
+          </Link>
         </nav>
       </header>
 

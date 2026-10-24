@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
+import { useResolvedTheme } from '@/hooks/useTheme';
 import { useDebounce } from '@/hooks/useDebounce';
 import { calculateMortgage } from '@/utils/calculations';
 import { COUNTRIES, CurrencyCode, RateValue, RatesFile } from '@/utils/countries';
@@ -41,6 +43,37 @@ const CURRENCIES: Record<CurrencyCode, string> = {
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
+// Chart.js draws on a canvas, so it needs literal colours (same palettes as globals.css)
+const CHART_COLORS = {
+  dark: {
+    text: '#e7edf7',
+    muted: '#8d9bb3',
+    dim: '#64748b',
+    panel: '#101a2e',
+    line: 'rgba(148, 163, 184, 0.28)',
+    grid: 'rgba(148, 163, 184, 0.12)',
+    green: '#34d399',
+    indigo: '#818cf8',
+    red: '#f87171',
+    redSoft: '#fca5a5',
+  },
+  light: {
+    text: '#0f172a',
+    muted: '#526078',
+    dim: '#8592a6',
+    panel: '#ffffff',
+    line: 'rgba(15, 23, 42, 0.16)',
+    grid: 'rgba(15, 23, 42, 0.07)',
+    green: '#059669',
+    indigo: '#4f46e5',
+    red: '#dc2626',
+    redSoft: '#f87171',
+  },
+};
+
+// Highlight for the scenario with the higher net worth
+const WIN_CARD = { background: 'rgba(52, 211, 153, 0.08)', borderColor: 'rgba(52, 211, 153, 0.55)' };
+
 type RatesStatus =
   | { state: 'idle' }
   | { state: 'loading' }
@@ -70,6 +103,7 @@ export default function Home() {
   const [country, setCountry] = useState('US');
   const [ratesStatus, setRatesStatus] = useState<RatesStatus>({ state: 'idle' });
   // Column description opened by clicking/tapping its ⓘ icon (touch screens have no hover)
+  const CHART = CHART_COLORS[useResolvedTheme()];
   const [openTooltip, setOpenTooltip] = useState<{ key: string; text: string; left: number; top: number; above: boolean } | null>(null);
 
   useEffect(() => {
@@ -235,13 +269,14 @@ export default function Home() {
       <div className="page-header">
         <div>
           <h1><Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>TrueCalc</Link></h1>
-          <p style={{ color: '#666' }}>Compare extra mortgage down payment vs. investing your money. No opinios, make your decission based on Math.</p>
-          <div style={{ fontSize: '11px', color: '#999', marginTop: '8px', lineHeight: '1.4' }}>
+          <p style={{ color: 'var(--muted)' }}>Compare extra mortgage down payment vs. investing your money. No opinios, make your decission based on Math.</p>
+          <div style={{ fontSize: '11px', color: 'var(--dim)', marginTop: '8px', lineHeight: '1.4' }}>
             * Notice a simple matematical dependecy on the overall net worth.<br />
             * Reliefs from Interest and Taxes are not considered
           </div>
         </div>
         <div className="header-selects">
+          <ThemeToggle />
           <select aria-label="Country" value={country} onChange={(e) => selectCountry(e.target.value)} style={{ width: 'auto' }}>
             {COUNTRIES.map(c => (
               <option key={c.code} value={c.code}>{c.name}</option>
@@ -260,28 +295,28 @@ export default function Home() {
         {/* Inputs */}
         <div className="card" style={{ marginBottom: 0, padding: '20px' }}>
           {/* Current rates */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--line)' }}>
             <button
               type="button"
               onClick={loadCurrentRates}
               disabled={ratesStatus.state === 'loading'}
-              style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', backgroundColor: '#4f46e5', border: 'none', borderRadius: '6px', cursor: ratesStatus.state === 'loading' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: ratesStatus.state === 'loading' ? 0.7 : 1 }}
+              style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 600, color: '#04120c', background: 'linear-gradient(135deg, var(--green), #22d3ee)', boxShadow: '0 6px 24px rgba(52, 211, 153, 0.22)', border: 'none', borderRadius: '8px', cursor: ratesStatus.state === 'loading' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: ratesStatus.state === 'loading' ? 0.7 : 1 }}
             >
               {ratesStatus.state === 'loading' ? 'Loading…' : `Use current rates for ${COUNTRIES.find(c => c.code === country)?.name}`}
             </button>
-            <div style={{ fontSize: '12px', color: '#666', lineHeight: 1.5, alignSelf: 'center' }}>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5, alignSelf: 'center' }}>
               {ratesStatus.state === 'idle' && 'Fills in the latest published mortgage rate and inflation for the selected country.'}
-              {ratesStatus.state === 'error' && <span style={{ color: '#dc2626' }}>{ratesStatus.message}</span>}
+              {ratesStatus.state === 'error' && <span style={{ color: 'var(--red)' }}>{ratesStatus.message}</span>}
               {ratesStatus.state === 'done' && (
                 <>
                   {ratesStatus.filled.map(({ label, rate }) => (
                     <div key={label}>
                       <strong>{label}: {rate.value}%</strong> ({formatPeriod(rate.period)}) –{' '}
-                      <a href={rate.url} target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5' }}>{rate.source}</a>
+                      <a href={rate.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--indigo)' }}>{rate.source}</a>
                     </div>
                   ))}
                   {ratesStatus.missing.length > 0 && (
-                    <div style={{ color: '#b45309' }}>
+                    <div style={{ color: 'var(--amber)' }}>
                       No current {ratesStatus.missing.join(' or ')} available for this country – please enter it manually.
                     </div>
                   )}
@@ -293,7 +328,7 @@ export default function Home() {
           <div className="inputs-grid">
             {/* Loan Details */}
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Loan Details</h2>
+              <h2 className="section-label">Loan Details</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Loan Amount</label>
@@ -312,7 +347,7 @@ export default function Home() {
 
             {/* Extra Payment Strategy */}
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Extra Payment Strategy</h2>
+              <h2 className="section-label">Extra Payment Strategy</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Monthly Extra</label>
@@ -331,7 +366,7 @@ export default function Home() {
 
             {/* One-Time Extra Payment */}
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>One-Time Extra Payment</h2>
+              <h2 className="section-label">One-Time Extra Payment</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Payment Amount</label>
@@ -346,7 +381,7 @@ export default function Home() {
 
             {/* Post-Payoff Strategy */}
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: '15px', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Post-Payoff Strategy</h2>
+              <h2 className="section-label">Post-Payoff Strategy</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
                   <input
@@ -370,7 +405,7 @@ export default function Home() {
                   </div>
                 )}
                 {continueInvestingAfterPayoff && (
-                  <div style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginLeft: '24px' }}>
                     Will invest {formatCurrency(monthlyPayment)}/mo + extra payments
                   </div>
                 )}
@@ -429,40 +464,40 @@ export default function Home() {
                 <>
                   {/* Scenario A: Pay Off Early & Invest */}
                   <div className="scenario-col">
-                    <h3 className="scenario-title" style={{ color: '#4f46e5' }}>Scenario A: Pay Off Early & Invest</h3>
-                    <div className="card net-card" style={{ background: strategyAIsBetter ? '#dcfce7' : '#fff', border: strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
+                    <h3 className="scenario-title" style={{ color: 'var(--indigo)' }}>Scenario A: Pay Off Early & Invest</h3>
+                    <div className="card net-card" style={strategyAIsBetter ? WIN_CARD : undefined}>
                       <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div className="net-value" style={{ color: strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthA)}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
+                      <div className="net-value" style={{ color: strategyAIsBetter ? 'var(--green)' : 'var(--text)' }}>{formatSummary(netWorthA)}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>After {years} years</div>
                     </div>
                     <div className="stat-grid">
                       <div className="card stat-card">
                         <h3>Cumulative Interest</h3>
-                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestA)}</div>
+                        <div className="stat-value" style={{ color: 'var(--red)' }}>{formatSummary(cumulativeInterestA)}</div>
                       </div>
                       <div className="card stat-card">
                         <h3>Inv. Yield</h3>
-                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(paydownSavingsGrowth)}</div>
+                        <div className="stat-value" style={{ color: 'var(--green)' }}>{formatSummary(paydownSavingsGrowth)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Scenario B: Invest the Difference */}
                   <div className="scenario-col">
-                    <h3 className="scenario-title" style={{ color: '#059669' }}>Scenario B: Invest the Difference</h3>
-                    <div className="card net-card" style={{ background: !strategyAIsBetter ? '#dcfce7' : '#fff', border: !strategyAIsBetter ? '1px solid #059669' : '1px solid #e5e7eb' }}>
+                    <h3 className="scenario-title" style={{ color: 'var(--green)' }}>Scenario B: Invest the Difference</h3>
+                    <div className="card net-card" style={!strategyAIsBetter ? WIN_CARD : undefined}>
                       <h3>Net Worth {showInflationAdjusted && '(Real)'}</h3>
-                      <div className="net-value" style={{ color: !strategyAIsBetter ? '#059669' : '#333' }}>{formatSummary(netWorthB)}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>After {years} years</div>
+                      <div className="net-value" style={{ color: !strategyAIsBetter ? 'var(--green)' : 'var(--text)' }}>{formatSummary(netWorthB)}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>After {years} years</div>
                     </div>
                     <div className="stat-grid">
                       <div className="card stat-card">
                         <h3>Cumulative Interest</h3>
-                        <div className="stat-value" style={{ color: '#ef4444' }}>{formatSummary(cumulativeInterestB)}</div>
+                        <div className="stat-value" style={{ color: 'var(--red)' }}>{formatSummary(cumulativeInterestB)}</div>
                       </div>
                       <div className="card stat-card">
                         <h3>Inv. Yield</h3>
-                        <div className="stat-value" style={{ color: '#10b981' }}>{formatSummary(investmentYield)}</div>
+                        <div className="stat-value" style={{ color: 'var(--green)' }}>{formatSummary(investmentYield)}</div>
                       </div>
                     </div>
                   </div>
@@ -482,8 +517,8 @@ export default function Home() {
                     {
                       label: 'Mortgage Balance A',
                       data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.remainingBalance),
-                      borderColor: '#ef4444',
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: CHART.red,
+                      backgroundColor: 'rgba(248, 113, 113, 0.12)',
                       fill: true,
                       tension: 0.4,
                       pointRadius: 0,
@@ -493,8 +528,8 @@ export default function Home() {
                     {
                       label: 'Mortgage Balance B',
                       data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.baselineBalance),
-                      borderColor: '#f87171',
-                      backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                      borderColor: CHART.redSoft,
+                      backgroundColor: 'rgba(252, 165, 165, 0.08)',
                       borderDash: [5, 5],
                       fill: false,
                       tension: 0.4,
@@ -505,8 +540,8 @@ export default function Home() {
                     {
                       label: 'Net Worth A',
                       data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.netWorthA),
-                      borderColor: '#10b981',
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      borderColor: CHART.indigo,
+                      backgroundColor: 'rgba(129, 140, 248, 0.1)',
                       fill: false,
                       tension: 0.4,
                       pointRadius: 0,
@@ -516,8 +551,8 @@ export default function Home() {
                     {
                       label: 'Net Worth B',
                       data: result.schedule.filter((_, i) => i % 12 === 0 || i === result.schedule.length - 1).map(d => d.netWorthB),
-                      borderColor: '#4f46e5',
-                      backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                      borderColor: CHART.green,
+                      backgroundColor: 'rgba(52, 211, 153, 0.1)',
                       fill: false,
                       tension: 0.4,
                       pointRadius: 0,
@@ -533,7 +568,7 @@ export default function Home() {
                     legend: {
                       position: 'top' as const,
                       labels: {
-                        color: '#666',
+                        color: CHART.muted,
                         font: { size: 12 },
                         usePointStyle: true,
                         padding: 30,
@@ -543,10 +578,10 @@ export default function Home() {
                     tooltip: {
                       mode: 'index' as const,
                       intersect: false,
-                      backgroundColor: '#fff',
-                      titleColor: '#333',
-                      bodyColor: '#666',
-                      borderColor: '#ddd',
+                      backgroundColor: CHART.panel,
+                      titleColor: CHART.text,
+                      bodyColor: CHART.muted,
+                      borderColor: CHART.line,
                       borderWidth: 1,
                       callbacks: {
                         label: function (context: { dataset: { label?: string }, parsed: { y: number | null } }) {
@@ -563,15 +598,15 @@ export default function Home() {
                   scales: {
                     x: {
                       grid: { display: false },
-                      ticks: { color: '#999', font: { size: 11 } }
+                      ticks: { color: CHART.dim, font: { size: 11 } }
                     },
                     y: {
                       type: 'linear' as const,
                       display: true,
                       position: 'left' as const,
-                      grid: { color: '#f0f0f0' },
+                      grid: { color: CHART.grid },
                       ticks: {
-                        color: '#999',
+                        color: CHART.dim,
                         font: { size: 11 },
                         callback: function (value: string | number) {
                           const numValue = typeof value === 'string' ? parseFloat(value) : value;
@@ -614,10 +649,10 @@ export default function Home() {
                 })}
                 style={{
                   padding: '6px 12px',
-                  background: '#4f46e5',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
+                  background: 'rgba(129, 140, 248, 0.16)',
+                  color: 'var(--indigo)',
+                  border: '1px solid rgba(129, 140, 248, 0.4)',
+                  borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: '500'
@@ -645,10 +680,10 @@ export default function Home() {
                 })}
                 style={{
                   padding: '6px 12px',
-                  background: '#6b7280',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
+                  background: 'var(--tint)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--line-strong)',
+                  borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: '500'
@@ -658,10 +693,10 @@ export default function Home() {
               </button>
             </div>
           </div>
-          <div style={{ marginBottom: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '4px', fontSize: '12px' }}>
+          <div style={{ marginBottom: '10px', padding: '10px 12px', background: 'var(--tint)', border: '1px solid var(--line)', borderRadius: '8px', fontSize: '12px', color: 'var(--muted)' }}>
             <strong>Customize columns:</strong> Click checkboxes in column headers to show/hide. Hover over or tap ⓘ for explanations.
             {Object.values(visibleColumns).filter(v => !v).length > 0 && (
-              <span style={{ marginLeft: '10px', color: '#f59e0b', fontWeight: '600' }}>
+              <span style={{ marginLeft: '10px', color: 'var(--amber)', fontWeight: '600' }}>
                 ({Object.values(visibleColumns).filter(v => !v).length} column{Object.values(visibleColumns).filter(v => !v).length !== 1 ? 's' : ''} hidden)
               </span>
             )}
@@ -677,8 +712,8 @@ export default function Home() {
                       position: 'sticky',
                       top: 0,
                       zIndex: 10,
-                      background: '#fff',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                      background: 'var(--panel-2)',
+                      boxShadow: '0 1px 0 var(--line-strong)',
                       padding: '4px 8px', // Reduced padding
                       fontSize: '11px', // Slightly smaller font
                       verticalAlign: 'top'
@@ -712,8 +747,8 @@ export default function Home() {
                               width: '12px',
                               height: '12px',
                               borderRadius: '50%',
-                              background: '#e5e7eb',
-                              color: '#666',
+                              background: 'rgba(129, 140, 248, 0.18)',
+                              color: 'var(--indigo)',
                               fontSize: '9px',
                               lineHeight: '12px',
                               textAlign: 'center',
@@ -734,23 +769,23 @@ export default function Home() {
                   <tr key={row.month}>
                     {visibleColumns.month && <td style={{ textAlign: 'center' }}>{row.month}</td>}
                     {visibleColumns.payment && <td style={{ textAlign: 'center' }}>{formatCurrency(row.payment)}</td>}
-                    {visibleColumns.principal && <td style={{ color: '#059669', textAlign: 'center' }}>{formatCurrency(row.principal)}</td>}
-                    {visibleColumns.interest && <td style={{ color: '#dc2626', textAlign: 'center' }}>{formatCurrency(row.interest)}</td>}
-                    {visibleColumns.cumulativeInterest && <td style={{ color: '#dc2626', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.totalInterestPaid)}</td>}
+                    {visibleColumns.principal && <td style={{ color: 'var(--green)', textAlign: 'center' }}>{formatCurrency(row.principal)}</td>}
+                    {visibleColumns.interest && <td style={{ color: 'var(--red)', textAlign: 'center' }}>{formatCurrency(row.interest)}</td>}
+                    {visibleColumns.cumulativeInterest && <td style={{ color: 'var(--red)', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.totalInterestPaid)}</td>}
                     {visibleColumns.extra && (
-                      <td style={{ color: row.extraPayment > 0 ? '#10b981' : '#999', textAlign: 'center' }}>
+                      <td style={{ color: row.extraPayment > 0 ? 'var(--green)' : 'var(--dim)', textAlign: 'center' }}>
                         {row.extraPayment > 0 ? `+${formatCurrency(row.extraPayment)}` : '-'}
                       </td>
                     )}
                     {visibleColumns.balance && <td style={{ textAlign: 'center' }}>{formatCurrency(row.remainingBalance)}</td>}
-                    {visibleColumns.baselineBalance && <td style={{ color: '#6b7280', textAlign: 'center' }}>{formatCurrency(row.baselineBalance)}</td>}
-                    {visibleColumns.baselineInterest && <td style={{ color: '#dc2626', opacity: 0.6, textAlign: 'center' }}>{formatCurrency(row.baselineInterest)}</td>}
-                    {visibleColumns.baselineCumulativeInterest && <td style={{ color: '#dc2626', opacity: 0.6, textAlign: 'center' }}>{formatCurrency(row.baselineCumulativeInterest)}</td>}
-                    {visibleColumns.invValue && <td style={{ color: '#4f46e5', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.investmentValue)}</td>}
-                    {visibleColumns.invGain && <td style={{ color: '#10b981', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.investmentGain)}</td>}
-                    {visibleColumns.interestSaved && <td style={{ color: '#f59e0b', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.cumulativeInterestSaved)}</td>}
-                    {visibleColumns.netWorthA && <td style={{ color: '#059669', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.netWorthA)}</td>}
-                    {visibleColumns.netWorthB && <td style={{ color: '#4f46e5', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.netWorthB)}</td>}
+                    {visibleColumns.baselineBalance && <td style={{ color: 'var(--muted)', textAlign: 'center' }}>{formatCurrency(row.baselineBalance)}</td>}
+                    {visibleColumns.baselineInterest && <td style={{ color: 'var(--red)', opacity: 0.6, textAlign: 'center' }}>{formatCurrency(row.baselineInterest)}</td>}
+                    {visibleColumns.baselineCumulativeInterest && <td style={{ color: 'var(--red)', opacity: 0.6, textAlign: 'center' }}>{formatCurrency(row.baselineCumulativeInterest)}</td>}
+                    {visibleColumns.invValue && <td style={{ color: 'var(--indigo)', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.investmentValue)}</td>}
+                    {visibleColumns.invGain && <td style={{ color: 'var(--green)', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.investmentGain)}</td>}
+                    {visibleColumns.interestSaved && <td style={{ color: 'var(--amber)', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.cumulativeInterestSaved)}</td>}
+                    {visibleColumns.netWorthA && <td style={{ color: 'var(--indigo)', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.netWorthA)}</td>}
+                    {visibleColumns.netWorthB && <td style={{ color: 'var(--green)', fontWeight: '600', textAlign: 'center' }}>{formatCurrency(row.netWorthB)}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -770,12 +805,13 @@ export default function Home() {
             width: '220px',
             zIndex: 1000,
             padding: '8px 10px',
-            background: '#1f2937',
-            color: '#fff',
+            background: 'var(--panel-2)',
+            color: 'var(--text)',
+            border: '1px solid var(--line-strong)',
             fontSize: '12px',
             lineHeight: 1.4,
             borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
           }}
         >
           {openTooltip.text}
@@ -786,10 +822,10 @@ export default function Home() {
       <div style={{
         marginTop: '40px',
         paddingTop: '20px',
-        borderTop: '1px solid #e5e7eb',
+        borderTop: '1px solid var(--line)',
         textAlign: 'center',
         fontSize: '12px',
-        color: '#666'
+        color: 'var(--muted)'
       }}>
         <Image
           src={`${BASE_PATH}/blacktree-logo.png`}
@@ -800,12 +836,13 @@ export default function Home() {
             width: '180px',
             height: 'auto',
             marginBottom: '12px',
-            opacity: 0.8
+            opacity: 0.85
           }}
+          className="brand-logo"
         />
         <p style={{ margin: '0 0 8px 0' }}>Created by Blacktree Studio - All rights reserved</p>
         <p style={{ margin: 0 }}>
-          Mailto: <a href="mailto:plasticxpower@gmail.com" style={{ color: '#4f46e5', textDecoration: 'none' }}>plasticxpower@gmail.com</a> - Your feedback is appreciated
+          Mailto: <a href="mailto:plasticxpower@gmail.com" style={{ color: 'var(--green)', textDecoration: 'none' }}>plasticxpower@gmail.com</a> - Your feedback is appreciated
         </p>
       </div>
     </div>
